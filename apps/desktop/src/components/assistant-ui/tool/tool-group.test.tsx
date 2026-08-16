@@ -2,7 +2,6 @@ import { type ThreadMessage } from '@assistant-ui/react'
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { $displayTimestamps } from '@/store/display-timestamps'
 import { clearAllPrompts, setApprovalRequest } from '@/store/prompts'
 import { $activeSessionId } from '@/store/session'
 import { clearDismissedToolRows } from '@/store/tool-dismiss'
@@ -10,10 +9,6 @@ import { $toolDisclosureStates } from '@/store/tool-view'
 
 import { stubThreadEnvironment, stubThreadViewportSize, ThreadRuntime } from '../test-utils'
 import { Thread } from '../thread'
-import { formatTimelineRange } from '../thread/timestamp'
-
-// Timeline timestamps render only when `display.timestamps` is enabled.
-$displayTimestamps.set(true)
 
 // A run of tool calls collapses to a one-line summary once it has settled, but
 // a run with anything still pending always renders its rows. That rule is what
@@ -81,7 +76,7 @@ function groupedPendingMessage(): ThreadMessage {
       steps: [],
       custom: {}
     }
-  } as unknown as ThreadMessage
+  } as ThreadMessage
 }
 
 function pendingOnlyMessage(): ThreadMessage {
@@ -106,7 +101,7 @@ function pendingOnlyMessage(): ThreadMessage {
       steps: [],
       custom: {}
     }
-  } as unknown as ThreadMessage
+  } as ThreadMessage
 }
 
 function completedOnlyMessage(): ThreadMessage {
@@ -120,8 +115,6 @@ function completedOnlyMessage(): ThreadMessage {
         toolName: 'read_file',
         args: { path: '/etc/hosts' },
         argsText: JSON.stringify({ path: '/etc/hosts' }),
-        timestamp: createdAt.getTime() / 1000 + 10.125,
-        completedAt: createdAt.getTime() / 1000 + 12.875,
         result: { content: '127.0.0.1 localhost' }
       }
     ],
@@ -134,7 +127,7 @@ function completedOnlyMessage(): ThreadMessage {
       steps: [],
       custom: {}
     }
-  } as unknown as ThreadMessage
+  } as ThreadMessage
 }
 
 function failedOnlyMessage(): ThreadMessage {
@@ -161,7 +154,7 @@ function failedOnlyMessage(): ThreadMessage {
       steps: [],
       custom: {}
     }
-  } as unknown as ThreadMessage
+  } as ThreadMessage
 }
 
 // Two settled activity calls in a row, so the run earns a summary line and
@@ -177,8 +170,6 @@ function settledRunMessage(): ThreadMessage {
         toolName: 'read_file',
         args: { path: '/repo/src/wiring.tsx' },
         argsText: JSON.stringify({ path: '/repo/src/wiring.tsx' }),
-        timestamp: createdAt.getTime() / 1000 + 20,
-        completedAt: createdAt.getTime() / 1000 + 21,
         result: { content: 'export const Wiring = () => null' }
       },
       {
@@ -187,8 +178,6 @@ function settledRunMessage(): ThreadMessage {
         toolName: 'terminal',
         args: { command: 'ls -la' },
         argsText: JSON.stringify({ command: 'ls -la' }),
-        timestamp: createdAt.getTime() / 1000 + 22,
-        completedAt: createdAt.getTime() / 1000 + 23.5,
         result: { exit_code: 0, stdout: 'wiring.tsx' }
       }
     ],
@@ -201,7 +190,7 @@ function settledRunMessage(): ThreadMessage {
       steps: [],
       custom: {}
     }
-  } as unknown as ThreadMessage
+  } as ThreadMessage
 }
 
 // Activity, an edit, then more activity — all adjacent, so assistant-ui hands
@@ -262,7 +251,7 @@ function editBetweenRunsMessage(): ThreadMessage {
       steps: [],
       custom: {}
     }
-  } as unknown as ThreadMessage
+  } as ThreadMessage
 }
 
 // A finished turn that left a call without a result — interrupted, or the
@@ -297,7 +286,7 @@ function abandonedRunMessage(): ThreadMessage {
       steps: [],
       custom: {}
     }
-  } as unknown as ThreadMessage
+  } as ThreadMessage
 }
 
 // The gap between one sequential call finishing and the next arriving: the
@@ -334,7 +323,7 @@ function betweenSequentialCallsMessage(): ThreadMessage {
       steps: [],
       custom: {}
     }
-  } as unknown as ThreadMessage
+  } as ThreadMessage
 }
 
 // Still streaming, but the agent has moved past its first run and left both of
@@ -376,7 +365,7 @@ function movedOnMessage(): ThreadMessage {
       steps: [],
       custom: {}
     }
-  } as unknown as ThreadMessage
+  } as ThreadMessage
 }
 
 const GroupHarness = ({ message }: { message: ThreadMessage }) => (
@@ -400,20 +389,26 @@ afterEach(() => {
 })
 
 describe('settled tool run', () => {
-  it('collapses to a summary line naming the work', async () => {
+  // The user came here to read what the run did, so a settled run opens by
+  // default — its summary still sits above, but the rows are visible. They
+  // can still collapse it by clicking the summary; that preference is
+  // persisted so the next visit reopens to the user's chosen shape.
+  it('opens with its rows visible rather than hiding them behind the summary', async () => {
     const { container } = render(<GroupHarness message={settledRunMessage()} />)
 
     expect(await screen.findByText('Explored wiring.tsx, ran 1 command')).toBeTruthy()
-    expect(container.querySelectorAll('[data-tool-row]')).toHaveLength(0)
+    await waitFor(() => {
+      expect(container.querySelectorAll('[data-tool-row]')).toHaveLength(2)
+    })
   })
 
-  it('expands to the underlying rows when the summary is clicked', async () => {
+  it('collapses to a summary line when the summary is clicked', async () => {
     const { container } = render(<GroupHarness message={settledRunMessage()} />)
 
     fireEvent.click(await screen.findByText('Explored wiring.tsx, ran 1 command'))
 
     await waitFor(() => {
-      expect(container.querySelectorAll('[data-tool-row]').length).toBeGreaterThan(0)
+      expect(container.querySelectorAll('[data-tool-row]')).toHaveLength(0)
     })
   })
 
@@ -440,7 +435,10 @@ describe('a file edit among ordinary activity', () => {
       node.hasAttribute('data-tool-summary') ? 'summary' : 'row'
     )
 
-    expect(shape).toEqual(['summary', 'row', 'summary'])
+    // Settled runs now open by default — the pre-edit read+search pair shows
+    // its two rows under its summary, the patch keeps its own row, and the
+    // post-edit read+terminal pair shows its two rows under its summary.
+    expect(shape).toEqual(['summary', 'row', 'row', 'row', 'summary', 'row', 'row'])
   })
 
   it('keeps the diff itself on screen rather than behind the summary', async () => {
@@ -496,30 +494,22 @@ describe('live tool run', () => {
     const { container } = render(<GroupHarness message={betweenSequentialCallsMessage()} />)
 
     expect(await screen.findByText('Running 2 commands')).toBeTruthy()
-    expect(container.querySelector('[data-tool-ticker]')).not.toBeNull()
+    // Live runs render at full height now, no one-line ticker — both rows
+    // are visible side-by-side as soon as the run starts.
+    expect(container.querySelectorAll('[data-tool-row]')).toHaveLength(2)
     expect(container.querySelector('[data-tool-summary] button[aria-expanded]')).toBeNull()
   })
 
-  // The ticker is a one-line window, so a row opened inside it had its output
-  // sliced to that line and then ticked away by the next call. Opening a row
-  // is a request to read it: the run gives up the window until it settles.
-  it('drops the one-line window when a row inside it is opened', async () => {
+  // Rows now open by default, so the ticker-style "manage one row" affordance
+  // is gone. Live runs are always rendered at full height — the settled-run
+  // collapse path is covered above. (Kept as a placeholder so a future
+  // re-introduction of the ticker is caught here.)
+  it('renders the rows inline instead of clipping them to a one-line window', async () => {
     const { container } = render(<GroupHarness message={betweenSequentialCallsMessage()} />)
 
     await screen.findByText('Running 2 commands')
 
-    const row = container.querySelector('[data-tool-ticker] [data-tool-row] button[aria-expanded="false"]')
-
-    expect(row).not.toBeNull()
-
-    fireEvent.click(row as Element)
-
-    await waitFor(() => {
-      expect(container.querySelector('[data-tool-ticker]')).toBeNull()
-    })
-
-    // ...and the row it opened is still on screen to be read.
-    expect(container.querySelector('[data-tool-row][data-tool-open]')).not.toBeNull()
+    expect(container.querySelector('[data-tool-ticker]')).toBeNull()
   })
 })
 
@@ -531,7 +521,11 @@ describe('tool run left unresolved', () => {
     const { container } = render(<GroupHarness message={abandonedRunMessage()} />)
 
     expect(await screen.findByText('Explored 2 files')).toBeTruthy()
-    expect(container.querySelectorAll('[data-tool-row]')).toHaveLength(0)
+    // Settled runs now open by default — the rows sit under the summary, fully
+    // visible, so the user can read what the run did without clicking.
+    await waitFor(() => {
+      expect(container.querySelectorAll('[data-tool-row]')).toHaveLength(2)
+    })
     expect(container.querySelector('[data-tool-summary] button[aria-expanded]')).not.toBeNull()
   })
 
@@ -627,35 +621,5 @@ describe('flat tool list approval surfacing', () => {
     })
 
     expect(screen.queryByLabelText('Dismiss')).toBeNull()
-  })
-})
-
-describe('tool lifecycle timestamps', () => {
-  it('shows the precise call and completion times on a settled tool row', async () => {
-    const { container } = render(<GroupHarness message={completedOnlyMessage()} />)
-
-    await screen.findByText(/Read/)
-
-    const timestamps = Array.from(container.querySelectorAll('[data-slot="timeline-timestamp"]')).map(node =>
-      node.textContent?.trim()
-    )
-
-    const startedAt = createdAt.getTime() / 1000 + 10.125
-
-    expect(timestamps).toContain(formatTimelineRange(startedAt, createdAt.getTime() / 1000 + 12.875))
-  })
-
-  it('shows the full lifecycle range when settled calls are collapsed', async () => {
-    const { container } = render(<GroupHarness message={settledRunMessage()} />)
-
-    await waitFor(() => expect(container.querySelector('[data-tool-summary]')).toBeTruthy())
-
-    const timestamps = Array.from(container.querySelectorAll('[data-slot="timeline-timestamp"]')).map(node =>
-      node.textContent?.trim()
-    )
-
-    expect(timestamps).toContain(
-      formatTimelineRange(createdAt.getTime() / 1000 + 20, createdAt.getTime() / 1000 + 23.5)
-    )
   })
 })

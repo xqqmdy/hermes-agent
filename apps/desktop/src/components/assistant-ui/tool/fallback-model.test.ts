@@ -158,7 +158,7 @@ describe('buildToolView file edit diffs', () => {
       patchDiff
     )
 
-    expect(view.title).toBe('demo.ts')
+    expect(view.title).toBe('src/demo.ts')
     expect(view.subtitle).toBe('src/demo.ts')
     expect(view.detail).toBe('')
     expect(view.inlineDiff).toBe(patchDiff)
@@ -174,7 +174,7 @@ describe('buildToolView file edit diffs', () => {
       ''
     )
 
-    expect(view.title).toBe('demo.ts')
+    expect(view.title).toBe('src/demo.ts')
     expect(view.subtitle).toBe('src/demo.ts')
     expect(view.detail).toBe('')
   })
@@ -199,8 +199,8 @@ describe('buildToolView title actions', () => {
       ''
     )
 
-    expect(read.title).toBe('Reading demo.txt')
-    expect(read.titleAction).toEqual({ prefix: '', text: 'Reading', suffix: ' demo.txt' })
+    expect(read.title).toBe('Reading /tmp/demo.txt')
+    expect(read.titleAction).toEqual({ prefix: '', text: 'Reading', suffix: ' /tmp/demo.txt' })
     expect(web.title).toBe('Reading example.com/docs')
     expect(web.titleAction).toEqual({ prefix: '', text: 'Reading', suffix: ' example.com/docs' })
     expect(terminal.title).toBe('Running npm test -- --runInBand')
@@ -222,7 +222,7 @@ describe('buildToolView title actions', () => {
       ''
     )
 
-    expect(view.title).toBe('Read package.json')
+    expect(view.title).toBe('Read ./package.json')
     expect(view.subtitle).toBe('')
     expect(view.titleAction).toBeUndefined()
   })
@@ -237,7 +237,7 @@ describe('buildToolView title actions', () => {
       ''
     )
 
-    expect(view.title).toBe('Read main.ts L25-34')
+    expect(view.title).toBe('Read ./src/main.ts L25-34')
     expect(view.subtitle).toBe('')
   })
 
@@ -254,7 +254,7 @@ describe('buildToolView title actions', () => {
       ''
     )
 
-    expect(view.title).toBe('Read package.json L1-5')
+    expect(view.title).toBe('Read ./package.json L1-5')
   })
 
   it('uses inherited backend context for live read_file rows', () => {
@@ -281,7 +281,7 @@ describe('buildToolView title actions', () => {
       ''
     )
 
-    expect(view.title).toBe('Read main.ts L99-100')
+    expect(view.title).toBe('Read ./src/main.ts L99-100')
   })
 
   it('renders compact terminal titles for session 20260624_231846_bdbd1e commands', () => {
@@ -372,8 +372,8 @@ describe('buildToolView title actions', () => {
       ''
     )
 
-    expect(read.title).toBe('demo.txt を読み取り中')
-    expect(read.titleAction).toEqual({ prefix: 'demo.txt を', text: '読み取り中', suffix: '' })
+    expect(read.title).toBe('/tmp/demo.txt を読み取り中')
+    expect(read.titleAction).toEqual({ prefix: '/tmp/demo.txt を', text: '読み取り中', suffix: '' })
     expect(web.title).toBe('example.com/docs を読み取り中')
     expect(web.titleAction).toEqual({ prefix: 'example.com/docs を', text: '読み取り中', suffix: '' })
   })

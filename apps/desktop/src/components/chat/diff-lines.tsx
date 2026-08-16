@@ -58,13 +58,15 @@ const PREVIEW_LINE_PX = 20
 const PREVIEW_OVERSCAN_LINES = 400
 
 // Bleed out of the tool-card body's `p-1.5` so tints/borders run flush to the
-// card edges (rounded corners clip via the card's overflow); compact height
-// with internal scroll like a code block.
+// card edges (rounded corners clip via the card's overflow). No fixed
+// `max-h` — the diff grows to fit the content, and `overflow-auto` kicks in
+// only if the row's outer constraints (message width + vertical space
+// budgeted by the paint system) clip a long diff to a scroll surface.
 // `overscroll-y-auto` so reaching the box's top/bottom hands the wheel back to
 // the page (no scroll-trap); `overscroll-x-contain` keeps a trackpad's sideways
 // overscroll on long code lines from firing browser back/forward navigation.
 const DIFF_BOX_CLASS =
-  '-mx-1.5 -mb-1.5 max-h-[12rem] max-w-none min-w-0 overflow-auto overscroll-x-contain overscroll-y-auto font-mono text-[0.7rem] leading-relaxed text-(--ui-text-secondary)'
+  '-mx-1.5 -mb-1.5 max-w-none min-w-0 overflow-auto overscroll-x-contain overscroll-y-auto font-mono text-[0.7rem] leading-relaxed text-(--ui-text-secondary)'
 
 function diffKind(line: string): DiffKind {
   if (line.startsWith('+') && !line.startsWith('+++')) {
@@ -645,8 +647,24 @@ export function FileDiffPanel({
   // VS Code-style gutter (new number for context/adds, old for removals) sits in
   // a left column; the scroller owns scroll so the overview ruler (an absolute
   // sibling) stays viewport-fixed.
+  //
+  // The container height is the diff's natural content height (rows × line px),
+  // not an inherited `h-full` — callers like the tool row don't constrain the
+  // box, and a tall diff should grow rather than collapse to zero. Parents
+  // that want a bounded scroll surface (review pane, file preview) wrap this
+  // in their own `overflow-auto` flex container, so the content-height box
+  // scrolls there instead of being clipped.
   return (
-    <div className={cn(DIFF_BOX_CLASS, 'relative overflow-hidden', className)} data-slot="file-diff-panel">
+    <div
+      className={cn(DIFF_BOX_CLASS, 'relative overflow-hidden', className)}
+      // Content height + a 1px slack: the inner scroller's rows can render a
+      // hair taller than PREVIEW_LINE_PX (sub-pixel font metrics, trailing
+      // newline producing a phantom row), which otherwise shows a 1-2px
+      // vertical scrollbar on an already-expanded diff. The slack is below
+      // one row so fixed-row windowing is unaffected.
+      style={{ height: lines.length * PREVIEW_LINE_PX + 1 }}
+      data-slot="file-diff-panel"
+    >
       <div
         className={cn('absolute inset-0 overflow-auto', showLineNumbers && 'pr-2.5')}
         onScroll={onScroll}
@@ -654,7 +672,7 @@ export function FileDiffPanel({
       >
         {showLineNumbers ? (
           <div className="grid min-w-max grid-cols-[auto_minmax(0,1fr)]">
-            <div
+<div
               className="sticky left-0 z-1 select-none bg-(--ui-editor-surface-background) py-3 text-muted-foreground/55"
               // Masks the code scrolling horizontally beneath it, so it has to
               // stay opaque when window glass thins the field. See
@@ -666,13 +684,22 @@ export function FileDiffPanel({
                 <div className="block" key={chunk.start}>
                   {chunk.lines.map((line, offset) => {
                     const index = chunk.start + offset
+                    // Claude Code / unified-diff style: removed rows carry the
+                    // OLD line number with a `-` suffix, added rows the NEW
+                    // line number with `+`, context rows just the shared
+                    // number (no suffix). The tint comes from the same
+                    // `--ui-diff-*-foreground` tokens the body uses, so the
+                    // gutter and code read as one column.
+                    const number = line.kind === 'remove' ? line.oldNo : line.newNo
+                    const suffix = line.kind === 'remove' ? '-' : line.kind === 'add' ? '+' : ''
 
                     return (
                       <div
-                        className="h-5 w-9 pr-2 text-right leading-5 tabular-nums"
+                        className={cn('h-5 w-12 pl-2 pr-1.5 text-right leading-5 tabular-nums', DIFF_KIND_TEXT[line.kind])}
                         key={`${index}-${line.oldNo}-${line.newNo}`}
                       >
-                        {line.newNo ?? ''}
+                        {number ?? ''}
+                        {suffix}
                       </div>
                     )
                   })}

@@ -469,7 +469,6 @@ function DismissibleErrorHarness({ onDismissError }: { onDismissError: (messageI
 describe('assistant-ui streaming renderer', () => {
   beforeEach(() => {
     resizeObservers.clear()
-    $reasoningCollapsedByDefault.set(false)
   })
 
   it('renders assistant text incrementally before completion', async () => {
@@ -621,70 +620,11 @@ describe('assistant-ui streaming renderer', () => {
     expect(container.textContent).not.toContain('```ts')
   })
 
-  it('does not collapse a live thinking preview when the turn settles', async () => {
-    const { container, settle } = renderSettlingReasoning()
-    const toggle = within(container).getByRole('button', { name: /thinking/i })
-
-    expect(toggle.getAttribute('aria-expanded')).toBe('true')
-    expect(container.querySelector('[data-slot="aui_reasoning-text"]')).toBeTruthy()
-
-    settle()
-
-    await waitFor(() => {
-      expect(
-        within(container)
-          .getByRole('button', { name: /thought/i })
-          .getAttribute('aria-expanded')
-      ).toBe('true')
-    })
-    expect(container.querySelector('[data-slot="aui_reasoning-text"]')).toBeTruthy()
-  })
-
-  it('leaves a settling turn collapsed when the collapsed-by-default preference is enabled', async () => {
-    $reasoningCollapsedByDefault.set(true)
-
-    const { container, settle } = renderSettlingReasoning()
-
-    expect(
-      within(container)
-        .getByRole('button', { name: /thinking/i })
-        .getAttribute('aria-expanded')
-    ).toBe('false')
-
-    settle()
-
-    await waitFor(() => {
-      expect(
-        within(container)
-          .getByRole('button', { name: /thought/i })
-          .getAttribute('aria-expanded')
-      ).toBe('false')
-    })
-    expect(container.querySelector('[data-slot="aui_reasoning-text"]')).toBeNull()
-  })
-
-  it('keeps streaming reasoning collapsed by default when the preference is enabled', () => {
-    $reasoningCollapsedByDefault.set(true)
-
-    const { container } = render(<RunningReasoningHarness />)
-    const thinkingToggle = within(container).getByRole('button', { name: /thinking/i })
-
-    expect(thinkingToggle.getAttribute('aria-expanded')).toBe('false')
-    expect(container.querySelector('[data-slot="aui_reasoning-text"]')).toBeNull()
-
-    fireEvent.click(thinkingToggle)
-
-    expect(thinkingToggle.getAttribute('aria-expanded')).toBe('true')
-    expect(container.querySelector('[data-slot="aui_reasoning-text"]')?.textContent).toContain('const answer = 42')
-  })
-
   it('renders reasoning text without a leading token space', () => {
     const { container } = render(<ReasoningHarness />)
-    const ui = within(container)
 
-    // Settled, so the header is past tense — a running block says "Thinking".
-    fireEvent.click(ui.getByRole('button', { name: /thought/i }))
-
+    // Settled thinking now stays open by default — the reasoning text is on
+    // screen without a click.
     expect(container.querySelector('[data-slot="aui_reasoning-text"]')?.textContent).toBe(
       'The user is asking what this file is.'
     )
@@ -696,8 +636,7 @@ describe('assistant-ui streaming renderer', () => {
     const disclosures = container.querySelectorAll('[data-slot="aui_thinking-disclosure"]')
     expect(disclosures.length).toBe(1)
 
-    fireEvent.click(disclosures[0].querySelector('button')!)
-
+    // Open by default — no click needed to see the grouped reasoning.
     const reasoningParts = container.querySelectorAll('[data-slot="aui_reasoning-text"]')
     expect(reasoningParts.length).toBe(2)
     expect(reasoningParts[0]?.textContent).toBe('First thought.')
@@ -710,9 +649,11 @@ describe('assistant-ui streaming renderer', () => {
     const disclosures = container.querySelectorAll('[data-slot="aui_thinking-disclosure"]')
     expect(disclosures.length).toBe(2)
 
-    expect(disclosures[0].querySelector('button')?.getAttribute('aria-expanded')).toBe('false')
+    // Both groups now open by default — an earlier completed group stays
+    // visible rather than collapsing when a later group runs.
+    expect(disclosures[0].querySelector('button')?.getAttribute('aria-expanded')).toBe('true')
     expect(disclosures[1].querySelector('button')?.getAttribute('aria-expanded')).toBe('true')
-    expect(container.textContent).not.toContain('Complete first thought.')
+    expect(container.textContent).toContain('Complete first thought.')
     expect(container.textContent).toContain('Interim answer.')
   })
 
@@ -748,8 +689,8 @@ describe('assistant-ui streaming renderer', () => {
       />
     )
 
-    fireEvent.click(container.querySelector('[data-tool-row] button')!)
-
+    // Tool rows now open by default — the failure text is on screen without a
+    // click, so the user sees what went wrong as soon as it happens.
     await waitFor(() => {
       expect(container.textContent).toContain('FAL rejected the prompt')
     })
@@ -759,8 +700,6 @@ describe('assistant-ui streaming renderer', () => {
 
   it('shows the command prompt and exit code for terminal calls', async () => {
     const { container } = render(<MessageHarness message={assistantTerminalMessage()} />)
-
-    fireEvent.click(container.querySelector('[data-tool-row] button')!)
 
     await waitFor(() => {
       expect(container.textContent).toContain('$ npm run check --workspace=apps/desktop')

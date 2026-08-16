@@ -39,13 +39,25 @@ describe('messageStoreWeight', () => {
 })
 
 describe('messagePaintWeight', () => {
-  it('prices a settled activity row as the one line it renders, not its payload', () => {
-    const heavy = messagePaintWeight([bigResult(RENDER_WEIGHT_CHARS * 100)])
+  // Activity rows (read_file / terminal / search_files / ...) now open by
+  // default, so their detail + stdout/stderr gets mounted. The renderer still
+  // clamps each row's paint to ~20KB (`MAX_TOOL_RENDER_CHARS`), so an
+  // enormous payload doesn't scale linearly with the bytes — pricing stops at
+  // the clamp.
+  it('caps an expanded activity row at its render clamp, not its payload size', () => {
+    const clamped = messagePaintWeight([bigResult(RENDER_WEIGHT_CHARS * 100)])
+    const wayOverClamp = messagePaintWeight([bigResult(RENDER_WEIGHT_CHARS * 500)])
+    const moderate = messagePaintWeight([bigResult(RENDER_WEIGHT_CHARS * 5)])
+    const tiny = messagePaintWeight([bigResult(200)])
 
-    // The whole point: a collapsed tool row costs the same whether it wraps
-    // 200 bytes or 50KB, because the payload sits behind a closed disclosure.
-    expect(heavy).toBe(messagePaintWeight([bigResult(200)]))
-    expect(heavy).toBeLessThan(messageStoreWeight([bigResult(RENDER_WEIGHT_CHARS * 100)]))
+    // Both over-clamp rows paint the same — once we hit the 20KB render
+    // clamp, more payload bytes stop adding paint cost.
+    expect(clamped).toBe(wayOverClamp)
+    // A row that fits below the clamp paints proportional to its bytes.
+    expect(tiny).toBeLessThan(clamped)
+    expect(moderate).toBeLessThan(clamped)
+    // The clamp also keeps paint way below store weight.
+    expect(clamped).toBeLessThan(messageStoreWeight([bigResult(RENDER_WEIGHT_CHARS * 100)]))
   })
 
   it('charges a reasoning block one collapsed header', () => {
@@ -97,15 +109,21 @@ describe('messagePaintWeight', () => {
     expect(messagePaintWeight(hoisted)).toBe(1)
   })
 
-  it('keeps a tool-heavy turn far cheaper to paint than to hold', () => {
-    // The measured shape behind the bad threshold: a dozen collapsed activity
-    // rows and a little prose. It paints as ~a dozen lines and used to be
-    // priced as an entire DOM page.
+  it('bounds paint under the render clamp even for a tool-heavy turn', () => {
+    // Activity rows now open by default, so each tool paints its detail. The
+    // renderer's per-row clamp keeps paint bounded — past it, more payload
+    // doesn't add paint cost. Twelve 4KB rows paint ~108 units; they would
+    // blow past that without the clamp.
     const parts = Array.from({ length: 12 }, () => bigResult(4_000)).concat([
       { type: 'text', text: 'x'.repeat(600) } as unknown as ReturnType<typeof bigResult>
     ])
 
-    expect(messagePaintWeight(parts)).toBeLessThan(messageStoreWeight(parts) / 5)
+    const paint = messagePaintWeight(parts)
+
+    // Each 4KB row paints ~9 units (1 + ceil(4000/512)) — well below the
+    // 20KB clamp — and the message as a whole stays well under the
+    // virtualizer's per-message ceiling.
+    expect(paint).toBeLessThan(300)
   })
 
   it('bounds a message of many enormous parts', () => {

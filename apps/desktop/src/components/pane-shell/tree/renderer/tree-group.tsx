@@ -738,6 +738,23 @@ export function TreeGroup({
         </ZoneMenu>
       )}
 
+      {/* Tab-bar restore chip: a minimal affordance to bring back the header
+          after an explicit dismissal via the zone menu. Only renders when the
+          header is hidden by `node.headerHidden` (user action) — not when
+          `paneChrome(active).headerVeto` (a full-page view), not when the
+          lone-pane auto-hide default is in play. Keep it small: the user only
+          needs a way back. */}
+      {node.headerHidden === true && !paneChrome(active).headerVeto && !node.minimized && !isEmpty && (
+        <button
+          aria-label={t.zones.showHeader}
+          className="absolute right-2 top-1 z-30 grid size-5 place-items-center rounded-md border border-(--ui-stroke-secondary) bg-popover text-(--ui-text-tertiary) transition-colors hover:bg-(--ui-control-hover-background) hover:text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-(--ui-accent)"
+          onClick={() => setTreeGroupHeaderHidden(node.id, false)}
+          type="button"
+        >
+          <Codicon name="window" size="0.8125rem" />
+        </button>
+      )}
+
       {/* FancyZones drop overlay — its own component so the per-frame drop
           hint re-renders only this (tiny) node, not the whole zone. */}
       <ZoneDropOverlay node={node} />

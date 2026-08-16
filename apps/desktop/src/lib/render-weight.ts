@@ -51,6 +51,12 @@ const NON_RENDERED_CONTENT_FIELDS = new Set(['id', 'role', 'toolCallId', 'toolNa
  */
 const COLLAPSED_ROW_WEIGHT = 1
 
+// What an expanded activity row actually paints — its detail + stdout/stderr,
+// clamped to `MAX_TOOL_RENDER_CHARS` (~20KB). Tool rows now open by default,
+// so the budget has to price what the user sees, not the summary line above
+// it. The clamp caps the worst case (one row can never eat a whole message).
+const EXPANDED_TOOL_ROW_MAX_WEIGHT = Math.ceil(20_000 / RENDER_WEIGHT_CHARS) + 1
+
 /**
  * What a fixed-size card costs the DOM.
  *
@@ -168,7 +174,13 @@ function partPaintWeight(part: unknown, measure: (parts: readonly unknown[]) => 
   }
 
   if (!isCardTool(toolName)) {
-    return COLLAPSED_ROW_WEIGHT
+    // Activity rows (read_file / terminal / search_files / ...) now open by
+    // default and paint their detail/stdout/stderr — bounded by
+    // `MAX_TOOL_RENDER_CHARS` in the renderer, so one row can never blow the
+    // message budget. A row the user has manually collapsed keeps the cheap
+    // weight (we don't know the persisted-open flag from here, but history is
+    // overwhelmingly default-open).
+    return Math.min(measure([part]), EXPANDED_TOOL_ROW_MAX_WEIGHT)
   }
 
   // A diff is the one card that scales: `FileDiffPanel` mounts a row per line,

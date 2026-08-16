@@ -125,7 +125,10 @@ function readFileDisplayTarget(args: Record<string, unknown>, result: Record<str
 
   const lineLabel = readFileLineLabel(args, result)
 
-  return [fileEditBasename(path), lineLabel].filter(Boolean).join(' ')
+  // Full path in the title — the basename alone hides which file was read
+  // when a turn reads several same-named files across directories (matches
+  // the file-edit tools, which already show the full path).
+  return [path, lineLabel].filter(Boolean).join(' ')
 }
 
 // The real command, preferring the actual argument over the backend's
@@ -1387,7 +1390,11 @@ function dynamicTitle(
     const path = fileEditPath(args, result)
 
     if (path) {
-      return { title: fileEditBasename(path) }
+      // Full path in the title — the basename alone hides which file the
+      // diff touched when a turn edits several same-named files across
+      // directories. The row's DisclosureRow shows the path in its native
+      // form; the layout truncates it (ellipsis) when the row is narrow.
+      return { title: path }
     }
   }
 
