@@ -672,11 +672,14 @@ export function FileDiffPanel({
       >
         {showLineNumbers ? (
           <div className="grid min-w-max grid-cols-[auto_minmax(0,1fr)]">
-<div
-              className="sticky left-0 z-1 select-none bg-(--ui-editor-surface-background) py-3 text-muted-foreground/55"
-              // Masks the code scrolling horizontally beneath it, so it has to
-              // stay opaque when window glass thins the field. See
-              // `[data-glass-opaque]` in styles.css.
+            {/* Gutter must NOT carry vertical padding — `py-3` on the column
+                container pushes every line-number down 12px relative to its
+                row, breaking the alignment between the number column and the
+                code column. Each `h-5 leading-5` row carries its own line
+                height (matches `.shiki code .line`'s 20px), so removing
+                container padding lines them up exactly. */}
+            <div
+              className="sticky left-0 z-1 select-none bg-(--ui-editor-surface-background) text-muted-foreground/55"
               data-glass-opaque=""
             >
               {beforeRows > 0 && <div aria-hidden style={{ height: beforeRows * PREVIEW_LINE_PX }} />}

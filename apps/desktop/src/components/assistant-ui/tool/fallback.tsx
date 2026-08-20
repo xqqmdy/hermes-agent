@@ -97,11 +97,18 @@ const TOOL_SECTION_LABEL_CLASS = 'mb-1 text-[0.65rem] font-medium uppercase trac
 // Inset scroll surface for any detail body. The expanded tool row owns the
 // border; the payload itself is just clipped raw text.
 const TOOL_SECTION_SURFACE_CLASS =
-  'max-w-full overflow-auto bg-transparent px-2 py-1.5 text-(--ui-text-secondary)'
+  'max-w-full overflow-auto bg-transparent px-2 text-(--ui-text-secondary)'
 
 const TOOL_EXPANDED_SHELL_CLASS = 'rounded-[0.3125rem] border border-(--ui-stroke-tertiary)'
 
-const TOOL_SECTION_PRE_CLASS = cn(TOOL_SECTION_SURFACE_CLASS, 'font-mono text-[0.7rem] leading-relaxed')
+// Locked to Shiki's `.shiki code .line { height:1.25rem; line-height:1.25rem }`
+// (see styles.css). The Shiki path uses `pre.shiki` with line-height fixed at
+// 20px; this pre renders the non-Shiki paths (no language, over-budget, etc).
+// `leading-relaxed` (~18px off the 0.7rem code font) read as "the read tool's
+// body is slightly tighter than its highlighted version" whenever the renderer
+// swapped to the plain-pre fallback. `leading-5` keeps both paths on the same
+// 20px row height — matches the diff gutter's contract.
+const TOOL_SECTION_PRE_CLASS = cn(TOOL_SECTION_SURFACE_CLASS, 'font-mono text-[0.7rem] leading-5')
 
 // Shared by the plain fallback <pre> and the Shiki-highlighted variant: the
 // mono font / size / surface padding carry over to the theme-colored
@@ -114,7 +121,11 @@ const TOOL_SECTION_PRE_CLASS_WRAP = cn(TOOL_SECTION_PRE_CLASS, 'whitespace-pre-w
 const LazyReadDetailHighlight = lazy(() => import('@/components/chat/read-detail-highlight'))
 
 // Raw args/result dump — reference material, so a notch smaller than a body.
-const TOOL_PAYLOAD_PRE_CLASS = cn(TOOL_SECTION_SURFACE_CLASS, 'font-mono text-[0.65rem] leading-relaxed')
+// `leading-5` to match the body row height — the technical-mode payload lives
+// beside the product body, and any line-height mismatch reads as "the row
+// shifted between modes" (skill: gutter container must NOT carry vertical
+// padding; here the equivalent is "all pre blocks share the same row offset").
+const TOOL_PAYLOAD_PRE_CLASS = cn(TOOL_SECTION_SURFACE_CLASS, 'font-mono text-[0.65rem] leading-5')
 
 /**
  * Technical-mode raw payload, behind a chevron disclosure.
@@ -479,7 +490,31 @@ function ToolEntry({ part }: ToolEntryProps) {
   // The language comes from the args path; unknown extensions fall back to the
   // plain pre. `exceedsHighlightBudget` mirrors the diff's guard so a
   // pathological file never forces Shiki over tens of thousands of lines.
-  const clampedDetail = useMemo(() => clampForDisplay(view.detail), [view.detail])
+  // Strip the `LINE_NUM|` protocol delimiter on read_file output so the
+  // line-number prefix never reaches Shiki as a real source character
+  // (Shiki would tokenize `12` as a number and `|` as a bitwise-OR
+  // operator — both tinted in the default palette and visually claiming
+  // they belong to the source). ReadDetailHighlight extracts the digits
+  // into a left gutter of its own; the plain-pre path gets the content
+  // without a gutter, matching what the row can render in its budget.
+  // AnsiText stays untouched (terminal output has no line-number prefixes
+  // to strip).
+  const clampedDetail = useMemo(() => {
+    if (stablePart.toolName !== 'read_file') {
+      return clampForDisplay(view.detail)
+    }
+    // Drop `<digits>|` (and the digit itself) — Shiki and the plain `<pre>`
+    // path both want the raw source. ReadDetailHighlight's `parseNumberedLines`
+    // re-extracts the same digits into its gutter column from the ORIGINAL
+    // `view.detail` (not the clamped form) so the gutter shows every line
+    // including the budget-clipped tail.
+    // Strip the `<digits>|` prefix entirely. The gutter-to-content gap
+    // (`gap-x-2` in ReadDetailHighlight) supplies the visual separation;
+    // padding the source with whitespace would (a) leak into copy-paste
+    // output and (b) drift the content alignment with the plain-pre
+    // fallback path.
+    return clampForDisplay(view.detail).replace(/^\d+\|/gm, '')
+  }, [stablePart.toolName, view.detail])
 
   const readDetailLanguage = useMemo(() => {
     if (stablePart.toolName !== 'read_file') {
@@ -751,8 +786,9 @@ function ToolEntry({ part }: ToolEntryProps) {
                     <Suspense fallback={detailPre}>
                       <LazyReadDetailHighlight
                         className={TOOL_SECTION_PRE_CLASS_WRAP}
-                        code={clampedDetail}
+                        code={view.detail}
                         language={readDetailLanguage}
+                        source={clampedDetail}
                       />
                     </Suspense>
                   ) : (
