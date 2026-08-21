@@ -273,9 +273,13 @@ function Detail({
               )}
               {section.body.trim() ? (
                 hasAnsi(section.body) ? (
-                  <Ansi dimColor={dimColor}>{sanitizeAnsiForRender(section.body)}</Ansi>
+                  // Full brightness: the body IS the deliverable (command
+                  // output, file content). The old path inherited the trail
+                  // row's dim flag, washing the entire output into a grey
+                  // that was hard to read. Labels stay muted; body doesn't.
+                  <Ansi>{sanitizeAnsiForRender(section.body)}</Ansi>
                 ) : (
-                  <Text color={color} dim={dimColor} wrap="wrap">
+                  <Text color={t.color.text} wrap="wrap">
                     {section.body}
                   </Text>
                 )

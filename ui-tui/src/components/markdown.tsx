@@ -815,6 +815,19 @@ function MdImpl({ cols, compact, t, text }: MdProps) {
         const isDiff = lang === 'diff'
         const highlighted = !isDiff && isHighlightable(lang)
 
+        // Line-number counters for the diff gutter (see the render below).
+        // Seeded at 1; each @@ hunk header resets them to the new-range start.
+        let oldNo = 1
+        let newNo = 1
+        const gutterWidth = Math.max(
+          2,
+          ...block.map(l => {
+            const m = /@@ -\d+(?:,\d+)? \+(\d+)(?:,\d+)? @@/.exec(l)
+
+            return m ? String(Number.parseInt(m[1], 10)).length : 1
+          })
+        )
+
         nodes.push(
           <Box flexDirection="column" key={key} paddingLeft={2}>
             {lang && !isDiff && <Text color={t.color.muted}>{'─ ' + lang}</Text>}
@@ -840,6 +853,48 @@ function MdImpl({ cols, compact, t, text }: MdProps) {
               const del = isDiff && l.startsWith('-')
               const hunk = isDiff && l.startsWith('@@')
 
+              if (hunk) {
+                // `@@ -a,b +c,d @@` — reset both counters to the new-range
+                // start so the gutter numbers track the file, not the hunk.
+                const m = /@@ -\d+(?:,\d+)? \+(\d+)(?:,\d+)? @@/.exec(l)
+
+                if (m) {
+                  oldNo = Number.parseInt(m[1], 10)
+                  newNo = Number.parseInt(m[1], 10)
+                }
+              }
+
+              // Claude Code-style single gutter: context rows show the shared
+              // number, removed rows the OLD number with `-`, added rows the
+              // NEW number with `+`. Numbers pad to the widest line number so
+              // the column doesn't jitter mid-diff.
+              const gutter = isDiff
+                ? (() => {
+                    if (hunk || (!l.startsWith('+') && !l.startsWith('-') && !l.startsWith(' '))) {
+                      return ''
+                    }
+
+                    const isAdd = l.startsWith('+')
+                    const isDel = l.startsWith('-')
+                    const n = isAdd ? newNo : isDel ? oldNo : oldNo
+                    const suffix = isAdd ? '+' : isDel ? '-' : ' '
+                    const label = `${String(n).padStart(gutterWidth)}${suffix}`
+
+                    if (isAdd) {
+                      newNo += 1
+                    } else if (!isDel) {
+                      oldNo += 1
+                      newNo += 1
+                    } else {
+                      oldNo += 1
+                    }
+
+                    return label
+                  })()
+                : ''
+
+              const body = isDiff && gutter ? l : l
+
               return (
                 <Text
                   backgroundColor={add ? t.color.diffAdded : del ? t.color.diffRemoved : undefined}
@@ -847,7 +902,12 @@ function MdImpl({ cols, compact, t, text }: MdProps) {
                   dimColor={isDiff && !add && !del && !hunk && l.startsWith(' ')}
                   key={j}
                 >
-                  {l}
+                  {gutter ? (
+                    <Text color={t.color.muted} dimColor>
+                      {gutter}
+                    </Text>
+                  ) : null}
+                  {body}
                 </Text>
               )
             })}
