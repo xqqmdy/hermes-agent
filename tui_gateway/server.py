@@ -8353,6 +8353,13 @@ def _history_to_messages(history: list[dict]) -> list[dict]:
             # truncation was permanent.
             if args:
                 tool_msg["args"] = args
+            # The persisted tool result (the stdout/stderr/return payload)
+            # lives in `content`. Without shipping it, a resumed session only
+            # shows the "Execute Code ✓" trail line and the output body is
+            # gone — so carry it verbatim and let the renderer decide how
+            # much to display (it has its own render budget).
+            if content_text.strip():
+                tool_msg["text"] = content_text
             messages.append(tool_msg)
             continue
         # An assistant turn may carry only reasoning/thinking content with no

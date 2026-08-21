@@ -1,5 +1,5 @@
 import { LONG_MSG } from '../config/limits.js'
-import { buildToolTrailLine } from '../lib/text.js'
+import { buildToolTrailLine, buildVerboseToolTrailLine } from '../lib/text.js'
 import type { Msg, SessionInfo } from '../types.js'
 
 export const introMsg = (info: SessionInfo): Msg => ({ info, kind: 'intro', role: 'system', text: '' })
@@ -35,7 +35,17 @@ export const toTranscriptMessages = (rows: unknown): Msg[] => {
       typeof timestamp === 'number' && Number.isFinite(timestamp) && timestamp > 0 ? timestamp : undefined
 
     if (role === 'tool') {
-      pending.push(buildToolTrailLine(name ?? 'tool', context ?? ''))
+      // A resumed session ships the persisted tool result in `text` (the
+      // gateway's display projection carries it verbatim now). When it's
+      // present, rebuild the verbose trail line so the output body survives
+      // the exit → resume round-trip instead of collapsing to "Tool ✓".
+      const trimmed = typeof text === 'string' ? text.trim() : ''
+
+      if (trimmed) {
+        pending.push(buildVerboseToolTrailLine(name ?? 'tool', context ?? '', false, undefined, undefined, trimmed))
+      } else {
+        pending.push(buildToolTrailLine(name ?? 'tool', context ?? ''))
+      }
 
       continue
     }

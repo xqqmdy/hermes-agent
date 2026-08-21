@@ -70,17 +70,19 @@ describe('buildVerboseToolTrailLine', () => {
     })
   })
 
-  it('caps a large result to a small persisted preview (#34095)', () => {
+  it('caps a large result to the persisted render budget (#34095)', () => {
     // A 40KB browser-snapshot-sized result must NOT be embedded whole — the
     // persisted, expanded-by-default trail block is what blew up the Ink
-    // render tree and silently OOM-killed the TUI. The block stays small.
+    // render tree and silently OOM-killed the TUI. The block keeps the live
+    // tail within VERBOSE_TRAIL_MAX_CHARS (16KB) instead of the full 40KB.
     const huge = 'A'.repeat(40_000)
     const line = buildVerboseToolTrailLine('browser_snapshot', 'https://x.example', false, 2, undefined, huge)
 
     expect(line).toContain('Result:\n')
-    // Far below the old 16KB live-render budget; the whole line (call + label +
-    // omitted marker + preview) must stay on the order of ~1KB, not ~40KB.
-    expect(line.length).toBeLessThan(2_000)
+    // The tail stays under the 16KB char budget plus a little call/marker
+    // overhead — nowhere near the 40KB input, but no longer the old 800-char
+    // sliver that hid the actual output.
+    expect(line.length).toBeLessThan(17_000)
     expect(line).toContain('omitted')
     expect(line.endsWith(' ✓')).toBe(true)
   })
@@ -207,12 +209,29 @@ describe('boundedLiveRenderText', () => {
     expect(out).not.toContain('abcdef')
   })
 
-  it('keeps the live tail by line budget', () => {
+  it('ignores the line budget — only the character budget trims', () => {
+    // maxLines used to drop the head to line boundaries, which silently lost
+    // the first rows of execute_code output. The character budget alone now
+    // guards the render tree, so text under maxChars passes through whole.
     const out = boundedLiveRenderText(['a', 'b', 'c', 'd'].join('\n'), { maxChars: 100, maxLines: 2 })
 
-    expect(out).toContain('c\nd')
-    expect(out).toContain('omitted 2 lines')
-    expect(out).not.toContain('a\nb')
+    expect(out).toBe('a\nb\nc\nd')
+    expect(out).not.toContain('omitted')
+  })
+
+  it('aligns the char-budget trim to a line boundary when possible', () => {
+    // Over budget: keep the tail, start after a newline so a partial line
+    // doesn't lead the output.
+    const out = boundedLiveRenderText(['aaaaaaaa', 'bbbbbbbb', 'cccccccc', 'dddddddd'].join('\n'), {
+      maxChars: 20,
+      maxLines: 10
+    })
+
+    expect(out).toContain('omitted')
+    // The tail keeps the last lines whole.
+    expect(out).toContain('cccccccc')
+    expect(out).toContain('dddddddd')
+    expect(out).not.toContain('aaaaaaaa')
   })
 })
 

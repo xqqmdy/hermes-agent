@@ -109,35 +109,32 @@ function TreeTextRow({
   // Tool results frequently carry raw ANSI escape sequences from the shell
   // (color, cursor positioning). A plain `<Text>{string}</Text>` would print
   // the escape codes literally; routing string content through `<Ansi>` when
-  // it carries ANSI turns them into real terminal styling instead. Non-ANSI
-  // text still goes through `<Text>` to keep the existing color/dim contract.
-  const renderText = (s: string) => {
-    if (hasAnsi(s)) {
-      return <Ansi>{sanitizeAnsiForRender(s)}</Ansi>
-    }
-    return s
+  // it carries ANSI turns them into real terminal styling instead. The ANSI
+  // path MUST NOT nest inside `<Text color=… wrap=…>`: the wrapper's `color`
+  // attribute overrides the escape-coded colors, and `wrap` interferes with
+  // the way `<Ansi>` emits its styled tokens. Return `<Ansi>` directly so the
+  // styled spans run as Ink siblings, not as children of a single styled box.
+  if (typeof content === 'string' && hasAnsi(content)) {
+    return (
+      <TreeRow branch={branch} rails={rails} t={t}>
+        {dimColor ? (
+          <Ansi dimColor>{sanitizeAnsiForRender(content)}</Ansi>
+        ) : (
+          <Ansi>{sanitizeAnsiForRender(content)}</Ansi>
+        )}
+      </TreeRow>
+    )
   }
 
-  const text =
-    typeof content === 'string' ? (
-      dimColor ? (
-        <Text color={color} dim wrap={wrap}>
-          {renderText(content)}
-        </Text>
-      ) : (
-        <Text color={color} wrap={wrap}>
-          {renderText(content)}
-        </Text>
-      )
-    ) : dimColor ? (
-      <Text color={color} dim wrap={wrap}>
-        {content}
-      </Text>
-    ) : (
-      <Text color={color} wrap={wrap}>
-        {content}
-      </Text>
-    )
+  const text = dimColor ? (
+    <Text color={color} dim wrap={wrap}>
+      {content}
+    </Text>
+  ) : (
+    <Text color={color} wrap={wrap}>
+      {content}
+    </Text>
+  )
 
   return (
     <TreeRow branch={branch} rails={rails} t={t}>
