@@ -6599,6 +6599,13 @@ def _tool_result_text(result: object) -> str:
         output = data.get('output')
         if isinstance(output, str) and output.strip():
             return _redact_tui_verbose_text(output)
+        # Read-shaped tools (read_file, search_files, …) carry the payload in
+        # `content`. Without this branch the envelope falls through to
+        # json.dumps and the TUI shows `{"content": "207|..."}` instead of
+        # the actual file text.
+        content = data.get('content')
+        if isinstance(content, str) and content.strip():
+            return _redact_tui_verbose_text(content)
 
     try:
         from agent.tool_dispatch_helpers import _multimodal_text_summary
