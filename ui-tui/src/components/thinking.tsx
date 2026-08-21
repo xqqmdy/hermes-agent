@@ -1,4 +1,4 @@
-import { Box, NoSelect, Text } from '@hermes/ink'
+import { Ansi, Box, NoSelect, Text } from '@hermes/ink'
 import { memo, type ReactNode, useEffect, useMemo, useRef, useState } from 'react'
 import spinners, { type BrailleSpinnerName } from 'unicode-animations'
 
@@ -20,8 +20,10 @@ import {
   estimateTokensRough,
   fmtK,
   formatToolCall,
+  hasAnsi,
   parseToolTrailResultLine,
   pick,
+  sanitizeAnsiForRender,
   splitToolDuration,
   thinkingPreview,
   toolTrailLabel
@@ -104,15 +106,38 @@ function TreeTextRow({
   t: Theme
   wrap?: 'truncate-end' | 'wrap' | 'wrap-trim'
 }) {
-  const text = dimColor ? (
-    <Text color={color} dim wrap={wrap}>
-      {content}
-    </Text>
-  ) : (
-    <Text color={color} wrap={wrap}>
-      {content}
-    </Text>
-  )
+  // Tool results frequently carry raw ANSI escape sequences from the shell
+  // (color, cursor positioning). A plain `<Text>{string}</Text>` would print
+  // the escape codes literally; routing string content through `<Ansi>` when
+  // it carries ANSI turns them into real terminal styling instead. Non-ANSI
+  // text still goes through `<Text>` to keep the existing color/dim contract.
+  const renderText = (s: string) => {
+    if (hasAnsi(s)) {
+      return <Ansi>{sanitizeAnsiForRender(s)}</Ansi>
+    }
+    return s
+  }
+
+  const text =
+    typeof content === 'string' ? (
+      dimColor ? (
+        <Text color={color} dim wrap={wrap}>
+          {renderText(content)}
+        </Text>
+      ) : (
+        <Text color={color} wrap={wrap}>
+          {renderText(content)}
+        </Text>
+      )
+    ) : dimColor ? (
+      <Text color={color} dim wrap={wrap}>
+        {content}
+      </Text>
+    ) : (
+      <Text color={color} wrap={wrap}>
+        {content}
+      </Text>
+    )
 
   return (
     <TreeRow branch={branch} rails={rails} t={t}>

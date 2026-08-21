@@ -11,11 +11,9 @@ import { ROLE } from '../domain/roles.js'
 import { transcriptBodyWidth, transcriptGutterWidth } from '../lib/inputMetrics.js'
 import {
   boundedLiveRenderText,
-  compactPreview,
   hasAnsi,
   isPasteBackedText,
-  sanitizeAnsiForRender,
-  stripAnsi
+  sanitizeAnsiForRender
 } from '../lib/text.js'
 import type { Theme } from '../theme.js'
 import type { ActiveTool, DetailsMode, Msg, SectionVisibility } from '../types.js'
@@ -128,20 +126,24 @@ export const MessageLine = memo(function MessageLine({
   }
 
   if (msg.role === 'tool') {
-    const maxChars = Math.max(24, cols - 14)
-    const stripped = hasAnsi(msg.text) ? stripAnsi(msg.text) : msg.text
-    const safeAnsi = hasAnsi(msg.text) ? sanitizeAnsiForRender(msg.text) : msg.text
-    const preview = compactPreview(stripped, maxChars) || '(empty tool result)'
+    // `compactPreview` collapsed every plain-text tool result down to a
+    // single ~80-char line — `git status` lost its first commit, the
+    // middle of a directory listing disappeared. The ANSI path already
+    // renders in full; do the same for plain text. Wrap-trim keeps the
+    // box from clipping each line at the terminal edge without flattening
+    // newlines, matching how the ANSI branch prints multi-line output.
+    const isAnsi = hasAnsi(msg.text)
+    const body = isAnsi ? sanitizeAnsiForRender(msg.text) : msg.text
 
     return (
       <Box alignSelf="flex-start" borderColor={t.color.muted} borderStyle="round" marginLeft={3} paddingX={1}>
-        {hasAnsi(msg.text) ? (
+        {isAnsi ? (
           <Text wrap="truncate-end">
-            <Ansi>{safeAnsi}</Ansi>
+            <Ansi>{body}</Ansi>
           </Text>
         ) : (
-          <Text color={t.color.muted} wrap="truncate-end">
-            {preview}
+          <Text color={t.color.muted} wrap="wrap-trim">
+            {body || '(empty tool result)'}
           </Text>
         )}
       </Box>

@@ -142,45 +142,29 @@ export const boundedLiveRenderText = (
 const boundedRenderText = (
   text: string,
   labelPrefix: string,
-  { maxChars, maxLines }: { maxChars: number; maxLines: number }
+  { maxChars }: { maxChars: number; maxLines?: number }
 ) => {
-  if (text.length <= maxChars && text.split('\n', maxLines + 1).length <= maxLines) {
+  // The previous shape also capped by `maxLines` and trimmed the head to
+  // line boundaries, which silently dropped the first ~20 rows of any
+  // execute_code output that exceeded 60 lines — the head/tail budget
+  // already lives in `code_execution_tool.py` (50KB head+tail, see
+  // `_STDOUT_HEAD_BYTES` / `_STDOUT_TAIL_BYTES`), so the TUI layer just
+  // renders what the gateway hands it. `maxLines` remains in the call
+  // signature for callers that pass it; we ignore it here on purpose.
+  if (text.length <= maxChars) {
     return text
   }
 
-  let start = 0
-  let idx = text.length
-
-  for (let seen = 0; seen < maxLines && idx > 0; seen++) {
-    idx = text.lastIndexOf('\n', idx - 1)
-    start = idx < 0 ? 0 : idx + 1
-
-    if (idx < 0) {
-      break
-    }
-  }
-
-  const lineStart = start
-  start = Math.max(lineStart, text.length - maxChars)
-
-  if (start > lineStart) {
-    const nextBreak = text.indexOf('\n', start)
-
-    if (nextBreak >= 0 && nextBreak < text.length - 1) {
-      start = nextBreak + 1
-    }
-  }
-
-  const tail = text.slice(start).trimStart()
-  const omittedLines = countNewlines(text, start)
+  const start = text.length - maxChars
+  const nextBreak = text.indexOf('\n', start)
+  const alignedStart = nextBreak >= 0 && nextBreak < text.length - 1 ? nextBreak + 1 : start
+  const tail = text.slice(alignedStart).trimStart()
   const omittedChars = Math.max(0, text.length - tail.length)
+  const omittedLines = countNewlines(text, alignedStart)
 
-  const label =
-    omittedLines > 0
-      ? `[${labelPrefix}; omitted ${fmtK(omittedLines)} lines / ${fmtK(omittedChars)} chars]\n`
-      : `[${labelPrefix}; omitted ${fmtK(omittedChars)} chars]\n`
-
-  return `${label}${tail}`
+  return omittedLines > 0
+    ? `[${labelPrefix}; omitted ${fmtK(omittedLines)} lines / ${fmtK(omittedChars)} chars]\n${tail}`
+    : `[${labelPrefix}; omitted ${fmtK(omittedChars)} chars]\n${tail}`
 }
 
 const countNewlines = (text: string, end: number) => {
