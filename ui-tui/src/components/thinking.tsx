@@ -28,6 +28,7 @@ import {
   thinkingPreview,
   toolTrailLabel
 } from '../lib/text.js'
+import { mix } from '../lib/color.js'
 import type { Theme } from '../theme.js'
 import type {
   ActiveTool,
@@ -207,6 +208,16 @@ interface DetailRow {
 // heading above a pre block, stderr in a dimmer tint below. Flat `::`-joined
 // text reads as one undifferentiated wall; splitting on the known section
 // labels restores that product shape in the terminal.
+// Desktop renders tool-output rows with vertical breathing room; the
+// terminal equivalent is a blank line between each source line. Leading and
+// trailing blanks are trimmed so the block stays tight against its label
+// and the next tree row.
+function spacedLines(body: string): string {
+  const lines = body.replace(/\n+$/, '').split('\n')
+
+  return lines.join('\n\n')
+}
+
 const DETAIL_SECTION_LABELS = ['Args', 'Result', 'Error'] as const
 
 function splitDetailSections(detail: string): Array<{ label: string; body: string }> {
@@ -265,11 +276,13 @@ function Detail({
       return (
         <>
           {sections.map((section, index) => {
-            // Args = the command/code payload → desktop parity: give it a
-            // subtle surface background (`selectionBg`) so it reads as "the
-            // input that was run", visually distinct from the Result block.
+            // Args = the command/code payload → desktop parity: a subtle
+            // surface background so it reads as "the input that was run".
+            // `selectionBg` alone is too loud for a full block; mixing it
+            // 55% toward the theme border keeps a tinted surface that sits
+            // closer to the terminal background.
             const isArgs = section.label === 'Args'
-            const bodyColor = isArgs ? t.color.text : t.color.muted
+            const argsBg = mix(t.color.selectionBg, t.color.border, 0.55)
             return (
               <TreeRow branch={index === sections.length - 1 ? branch : 'mid'} key={`${index}-${section.label}`} rails={rails} t={t}>
                 {section.label && (
@@ -279,7 +292,7 @@ function Detail({
                 )}
                 {section.body.trim() ? (
                   isArgs ? (
-                    <Text backgroundColor={t.color.selectionBg} wrap="wrap">
+                    <Text backgroundColor={argsBg} wrap="wrap">
                       {hasAnsi(section.body) ? (
                         <Ansi>{sanitizeAnsiForRender(section.body)}</Ansi>
                       ) : (
@@ -287,13 +300,14 @@ function Detail({
                       )}
                     </Text>
                   ) : hasAnsi(section.body) ? (
-                    // Result body: dimmer than the label's full-brightness
-                    // siblings but NOT `dim` — muted foreground sits between
-                    // the label (muted+dim) and Args (text on selectionBg).
-                    <Ansi>{sanitizeAnsiForRender(section.body)}</Ansi>
+                    // Result body: desktop spaces output rows with breathing
+                    // room; a blank line between each source line mirrors
+                    // that rhythm in the terminal (leading/trailing blanks
+                    // trimmed so the block stays tight against its label).
+                    <Text wrap="wrap">{spacedLines(sanitizeAnsiForRender(section.body))}</Text>
                   ) : (
-                    <Text color={bodyColor} wrap="wrap">
-                      {section.body}
+                    <Text color={t.color.muted} wrap="wrap">
+                      {spacedLines(section.body)}
                     </Text>
                   )
                 ) : null}
