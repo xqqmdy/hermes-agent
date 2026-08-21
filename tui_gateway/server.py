@@ -6549,12 +6549,24 @@ def _redact_tui_verbose_text(text: str) -> str:
     return _cap_tui_verbose_text(redacted)
 
 
-def _tool_args_text(args: dict) -> str:
+# Tools whose verbose Args block is suppressed outright. The tool label
+# already names the file (read_file), or the payload is rendered better
+# elsewhere — patch / write_file diffs show under the response label as an
+# inline diff block, so a JSON copy of old_string/new_string in the trail
+# is pure noise. Hardcoded by tool name: shape heuristics on the args dict
+# misfired across tool families.
+_ARGS_SUPPRESSED_TOOLS = frozenset({'read_file', 'patch', 'write_file'})
+
+
+def _tool_args_text(args: dict, tool_name: str = '') -> str:
     # Command-shaped tools carry their payload in a single string field —
     # `command` (terminal), `code` (execute_code), `script` (cronjob). The
     # user wants to read the COMMAND, not a JSON envelope escaping every
     # newline as \\n inside an indented object. Show the raw payload for
     # those; everything else keeps the pretty-printed JSON dump.
+    if tool_name in _ARGS_SUPPRESSED_TOOLS:
+        return ''
+
     data = args or {}
     for key in ('command', 'code', 'script'):
         value = data.get(key)
@@ -6568,7 +6580,14 @@ def _tool_args_text(args: dict) -> str:
     return _redact_tui_verbose_text(raw)
 
 
-def _tool_result_text(result: object) -> str:
+# Tools whose verbose Result block is suppressed outright: patch /
+# write_file results are success receipts ("patched", "bytes_written") —
+# the actual readable output is the inline diff under the response label.
+# A JSON receipt in the trail duplicates nothing useful.
+_RESULT_SUPPRESSED_TOOLS = frozenset({'patch', 'write_file'})
+
+
+def _tool_result_text(result: object, tool_name: str = '') -> str:
     # `_multimodal_text_summary` json.dumps()s a dict result — which dumps
     # shell/execute_code's {stdout, stderr, code} envelope to a raw JSON
     # string the TUI just displays verbatim. Parse the envelope first (the
@@ -6576,6 +6595,9 @@ def _tool_result_text(result: object) -> str:
     # stdout / stderr / output fields — matching the desktop's
     # `firstStringField` split in `buildToolView` — so the TUI shows the
     # actual command output instead of `{"stdout": "...", "stderr": "..."}`.
+    if tool_name in _RESULT_SUPPRESSED_TOOLS:
+        return ''
+
     data = result
     if isinstance(result, str):
         try:
@@ -6690,7 +6712,7 @@ def _on_tool_start(sid: str, tool_call_id: str, name: str, args: dict):
         if args:
             payload["args"] = args
         if _session_verbose(sid):
-            args_text = _tool_args_text(args)
+            args_text = _tool_args_text(args, name)
             if args_text:
                 payload["args_text"] = args_text
         # tool.complete is the source of truth for todos (full list from the
@@ -6717,7 +6739,7 @@ def _on_tool_complete(sid: str, tool_call_id: str, name: str, args: dict, result
     if summary:
         payload["summary"] = summary
     if _session_verbose(sid):
-        result_text = _tool_result_text(result)
+        result_text = _tool_result_text(result, name)
         if result_text:
             payload["result_text"] = result_text
     if name == "todo":
@@ -8401,7 +8423,7 @@ def _history_to_messages(history: list[dict]) -> list[dict]:
             # envelope as `text` and lost the Args block entirely — diverging
             # from what the same turn looked like live.
             try:
-                args_text = _tool_args_text(args)
+                args_text = _tool_args_text(args, name)
                 if args_text:
                     tool_msg["args_text"] = args_text
             except Exception:
@@ -8413,7 +8435,7 @@ def _history_to_messages(history: list[dict]) -> list[dict]:
             # much to display (it has its own render budget).
             if content_text.strip():
                 try:
-                    tool_msg["text"] = _tool_result_text(content_text)
+                    tool_msg["text"] = _tool_result_text(content_text, name)
                 except Exception:
                     tool_msg["text"] = content_text
             messages.append(tool_msg)
