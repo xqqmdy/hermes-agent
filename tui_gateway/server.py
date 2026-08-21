@@ -6558,6 +6558,27 @@ def _tool_args_text(args: dict) -> str:
 
 
 def _tool_result_text(result: object) -> str:
+    # `_multimodal_text_summary` json.dumps()s a dict result — which dumps
+    # shell/execute_code's {stdout, stderr, code} envelope to a raw JSON
+    # string the TUI just displays verbatim. Prefer the existing stdout /
+    # stderr fields (matching the desktop's `firstStringField` split in
+    # `buildToolView`) when the result is a dict, so the TUI shows the
+    # actual command output instead of `{"stdout": "...", "stderr": "..."}`.
+    if isinstance(result, dict):
+        stdout = result.get('stdout')
+        stderr = result.get('stderr')
+        if isinstance(stdout, str) or isinstance(stderr, str):
+            parts = []
+            if isinstance(stdout, str) and stdout:
+                parts.append(stdout)
+            if isinstance(stderr, str) and stderr:
+                # stderr is intentionally NOT painted destructive — many
+                # CLIs use it for informational messages (npm progress,
+                # git hints). Render it after stdout, plain.
+                parts.append(stderr)
+            if parts:
+                return _redact_tui_verbose_text('\n'.join(parts))
+
     try:
         from agent.tool_dispatch_helpers import _multimodal_text_summary
 
