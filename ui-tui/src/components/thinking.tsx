@@ -201,6 +201,46 @@ interface DetailRow {
   key: string
 }
 
+// A verbose tool-trail detail arrives as one flat string:
+//   `Args:\n{...}\nResult:\n<output> ✓`-adjacent body (see buildVerboseToolTrailLine).
+// The desktop renders the same payload as LABELED blocks — a muted `stdout`
+// heading above a pre block, stderr in a dimmer tint below. Flat `::`-joined
+// text reads as one undifferentiated wall; splitting on the known section
+// labels restores that product shape in the terminal.
+const DETAIL_SECTION_LABELS = ['Args', 'Result', 'Error'] as const
+
+function splitDetailSections(detail: string): Array<{ label: string; body: string }> {
+  const sections: Array<{ label: string; body: string }> = []
+  const lines = detail.split('\n')
+  let current: { label: string; body: string[] } | null = null
+
+  for (const line of lines) {
+    const match = /^(Args|Result|Error):$/.exec(line.trim())
+
+    if (match) {
+      if (current) {
+        sections.push({ label: current.label, body: current.body.join('\n') })
+      }
+      current = { label: match[1], body: [] }
+      continue
+    }
+
+    if (current) {
+      current.body.push(line)
+    } else if (line.trim()) {
+      // Content before any label (legacy single-block details) keeps its own
+      // unlabeled section so nothing is silently dropped.
+      current = { label: '', body: [line] }
+    }
+  }
+
+  if (current) {
+    sections.push({ label: current.label, body: current.body.join('\n') })
+  }
+
+  return sections.filter(section => section.body.trim() || section.label)
+}
+
 function Detail({
   branch = 'last',
   color,
@@ -209,6 +249,44 @@ function Detail({
   rails = [],
   t
 }: DetailRow & { branch?: TreeBranch; rails?: TreeRails; t: Theme }) {
+  // Labeled-section rendering only applies to plain-string verbose details.
+  // ReactNode content (spinners, JSX) and non-matching strings fall through
+  // to the original single-row path untouched.
+  //
+  // NOTE: this branch renders via `TreeRow` (a block container), NOT
+  // `TreeTextRow` — TreeTextRow wraps its content in a single `<Text>`, and
+  // Ink hard-crashes ("Box can't be nested inside Text") on any block
+  // element placed inside it. Each section is its own TreeRow: label line +
+  // body block as direct children.
+  if (typeof content === 'string' && DETAIL_SECTION_LABELS.some(label => content.startsWith(`${label}:\n`))) {
+    const sections = splitDetailSections(content)
+
+    if (sections.length > 0) {
+      return (
+        <>
+          {sections.map((section, index) => (
+            <TreeRow branch={index === sections.length - 1 ? branch : 'mid'} key={`${index}-${section.label}`} rails={rails} t={t}>
+              {section.label && (
+                <Text color={t.color.muted} dim>
+                  {section.label}
+                </Text>
+              )}
+              {section.body.trim() ? (
+                hasAnsi(section.body) ? (
+                  <Ansi dimColor={dimColor}>{sanitizeAnsiForRender(section.body)}</Ansi>
+                ) : (
+                  <Text color={color} dim={dimColor} wrap="wrap">
+                    {section.body}
+                  </Text>
+                )
+              ) : null}
+            </TreeRow>
+          ))}
+        </>
+      )
+    }
+  }
+
   return <TreeTextRow branch={branch} color={color} content={content} dimColor={dimColor} rails={rails} t={t} />
 }
 
