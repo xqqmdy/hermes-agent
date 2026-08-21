@@ -3,6 +3,13 @@ import type { ThemeColors } from './theme.js'
 const RICH_RE = /\[(?:bold\s+)?(?:dim\s+)?(#(?:[0-9a-fA-F]{3,8}))\]([\s\S]*?)(\[\/\])/g
 
 export function parseRichMarkup(markup: string): Line[] {
+  // One output Line per SOURCE line. Skin art (banner_hero) tags every glyph
+  // with its own `[color]span[/]` — emitting each span as its own Line made
+  // ArtLines render the art vertically, one glyph per terminal row (the
+  // "dot matrix collapses into a column" bug). A row keeps its spans'
+  // concatenated text and takes the FIRST span's color as the row ink;
+  // per-glyph gradient nuance is traded for correct geometry, which any
+  // span-density must preserve.
   const lines: Line[] = []
 
   for (const raw of markup.split('\n')) {
@@ -22,22 +29,30 @@ export function parseRichMarkup(markup: string): Line[] {
       continue
     }
 
+    let text = ''
+    let color = ''
     let cursor = 0
 
     for (const m of matches) {
-      const before = trimmed.slice(cursor, m.index)
-
-      if (before) {
-        lines.push(['', before])
+      // Keep inter-span text (leading indents, separators) — skin art aligns
+      // with braille-blank runs outside the color spans.
+      if (m.index! > cursor) {
+        text += trimmed.slice(cursor, m.index)
       }
 
-      lines.push([m[1]!, m[2]!])
+      if (!color) {
+        color = m[1] ?? ''
+      }
+
+      text += m[2] ?? ''
       cursor = m.index! + m[0].length
     }
 
     if (cursor < trimmed.length) {
-      lines.push(['', trimmed.slice(cursor)])
+      text += trimmed.slice(cursor)
     }
+
+    lines.push([color, text])
   }
 
   return lines
