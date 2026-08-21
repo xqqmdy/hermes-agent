@@ -81,6 +81,11 @@ export const MessageLine = memo(function MessageLine({
   // predecessor, never this block's own live content. See domain/blockLayout.
   const leadGap = hasLeadGap(prev, msg)
 
+  // Diff segments travel as `kind: 'diff'` (see turnController.pushInlineDiffSegment
+  // and messageLine's render below). Declare this early so the body-render
+  // branch can route them through `<Md>` instead of `<Ansi>`.
+  const isDiffSegment = msg.kind === 'diff'
+
   // Collapse toggle for long system messages
   const systemIsLong = msg.role === 'system' && msg.text.length > SYSTEM_COLLAPSE_CHARS
   const [systemOpen, setSystemOpen] = useState(false)
@@ -255,11 +260,6 @@ export const MessageLine = memo(function MessageLine({
 
     return <Text {...(body ? { color: body } : {})}>{msg.text}</Text>
   })()
-
-  // Diff segments (emitted by pushInlineDiffSegment between narration
-  // segments) keep a blank line on both sides so the patch doesn't butt up
-  // against the prose around it.
-  const isDiffSegment = msg.kind === 'diff'
 
   // `display.timestamps`: dim [HH:MM] beside the gutter glyph on user and
   // assistant rows only — event/trail/system chrome stays unstamped, matching

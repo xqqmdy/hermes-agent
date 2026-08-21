@@ -484,11 +484,20 @@ class TurnController {
   }
 
   pushInlineDiffSegment(diffText: string, tools: string[] = []) {
-    // Strip CLI chrome the gateway emits before the unified diff (e.g. a
-    // leading "┊ review diff" header written by `_emit_inline_diff` for the
-    // terminal printer). That header only makes sense as stdout dressing,
-    // not inside a markdown ```diff block.
-    const stripped = diffText.replace(/^\s*┊[^\n]*\n?/, '').trim()
+    // The gateway already pre-colors each diff line with ANSI escapes (see
+    // `agent.display._render_inline_unified_diff`). Strip those before we
+    // wrap the body in a markdown ```diff fence — without stripping, the
+    // first byte of a colored "+foo" line is "\x1b", not "+", so the
+    // markdown diff branch (which keys off `+`/`-`/`@@` line prefixes)
+    // would misclassify every line as `context` and dump the whole patch
+    // in dim grey. Desktop does the same `stripAnsi` in
+    // `stripInlineDiffChrome` (#fallback-model/index.ts); mirror it here
+    // so the two renderers agree on what `+`/`-` looks like.
+    const stripped = diffText
+      .replace(/^\s*┊[^\n]*\n?/, '')
+      .split('\x1b')
+      .reduce((acc, chunk, index) => (index === 0 ? chunk : acc + chunk.replace(/^\[[0-9;]*[A-Za-z]/, '')), '')
+      .trim()
 
     if (!stripped) {
       return
