@@ -8386,13 +8386,29 @@ def _history_to_messages(history: list[dict]) -> list[dict]:
             # truncation was permanent.
             if args:
                 tool_msg["args"] = args
+            # Ship the SAME product-shaped projections a live turn does
+            # (`_tool_args_text` / `_tool_result_text`): command-shaped args
+            # render as the raw command instead of a JSON dump, and result
+            # envelopes ({stdout, stderr} / {output}) collapse to their text
+            # payload. Without this, a resumed session showed the raw JSON
+            # envelope as `text` and lost the Args block entirely — diverging
+            # from what the same turn looked like live.
+            try:
+                args_text = _tool_args_text(args)
+                if args_text:
+                    tool_msg["args_text"] = args_text
+            except Exception:
+                pass
             # The persisted tool result (the stdout/stderr/return payload)
             # lives in `content`. Without shipping it, a resumed session only
             # shows the "Execute Code ✓" trail line and the output body is
             # gone — so carry it verbatim and let the renderer decide how
             # much to display (it has its own render budget).
             if content_text.strip():
-                tool_msg["text"] = content_text
+                try:
+                    tool_msg["text"] = _tool_result_text(content_text)
+                except Exception:
+                    tool_msg["text"] = content_text
             messages.append(tool_msg)
             continue
         # An assistant turn may carry only reasoning/thinking content with no

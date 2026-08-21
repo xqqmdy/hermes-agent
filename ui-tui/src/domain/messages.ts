@@ -35,14 +35,17 @@ export const toTranscriptMessages = (rows: unknown): Msg[] => {
       typeof timestamp === 'number' && Number.isFinite(timestamp) && timestamp > 0 ? timestamp : undefined
 
     if (role === 'tool') {
-      // A resumed session ships the persisted tool result in `text` (the
-      // gateway's display projection carries it verbatim now). When it's
-      // present, rebuild the verbose trail line so the output body survives
-      // the exit → resume round-trip instead of collapsing to "Tool ✓".
+      // A resumed session ships the same product-shaped projections a live
+      // turn does: `args_text` (command-shaped args) and `text` (the result
+      // payload, already extracted from its envelope by the gateway). Feed
+      // both into the verbose trail line so the resumed transcript renders
+      // identically to the live one — Args block included.
       const trimmed = typeof text === 'string' ? text.trim() : ''
+      const rawArgsText = (row as { args_text?: unknown }).args_text
+      const argsText = typeof rawArgsText === 'string' && rawArgsText.trim() ? rawArgsText : undefined
 
-      if (trimmed) {
-        pending.push(buildVerboseToolTrailLine(name ?? 'tool', context ?? '', false, undefined, undefined, trimmed))
+      if (trimmed || argsText) {
+        pending.push(buildVerboseToolTrailLine(name ?? 'tool', context ?? '', false, undefined, argsText, trimmed || undefined))
       } else {
         pending.push(buildToolTrailLine(name ?? 'tool', context ?? ''))
       }
