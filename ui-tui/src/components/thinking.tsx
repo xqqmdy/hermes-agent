@@ -270,17 +270,31 @@ function Detail({
   // element placed inside it. Each section is its own TreeRow: label line +
   // body block as direct children.
   if (typeof content === 'string' && DETAIL_SECTION_LABELS.some(label => content.startsWith(`${label}:\n`))) {
-    const sections = splitDetailSections(content)
+    let sections = splitDetailSections(content)
+
+    // Read-shaped tools (read_file / patch) put their whole payload in the
+    // Result — the Args block (a file path) adds nothing the tool label
+    // doesn't already say. Drop it so the output stands alone, matching the
+    // desktop where these tools render only their diff/content body.
+    if (sections[0]?.label === 'Args' && sections.length > 1) {
+      const first = sections[0]!.body.trim()
+      const looksLikePath =
+        !first.includes('\n') &&
+        (first.startsWith('/') || /^[a-zA-Z]:[\\/]/.test(first) || !first.includes(' '))
+
+      if (looksLikePath) {
+        sections = sections.slice(1)
+      }
+    }
 
     if (sections.length > 0) {
       return (
         <>
           {sections.map((section, index) => {
-            // Args = the command/code payload → desktop parity: a subtle
-            // surface background so it reads as "the input that was run".
-            // `selectionBg` alone is too loud for a full block; mixing it
-            // 55% toward the theme border keeps a tinted surface that sits
-            // closer to the terminal background.
+            // Command-shaped Args (terminal / execute_code) keep the tinted
+            // surface: `selectionBg` alone is too loud for a full block, so
+            // mix it 55% toward the theme border to sit near the terminal
+            // background.
             const isArgs = section.label === 'Args'
             const argsBg = mix(t.color.selectionBg, t.color.border, 0.55)
             return (
