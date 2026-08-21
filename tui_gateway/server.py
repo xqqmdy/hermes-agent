@@ -6508,32 +6508,23 @@ def broadcast_session_info() -> None:
 # parent (#34095). Cap here to match the render budget (a hair more, so the
 # "[omitted …]" label is still informative when output is genuinely large).
 # Full output stays in the agent context and the SQLite session, untouched.
-_TUI_VERBOSE_TEXT_MAX_CHARS = 1_000
-_TUI_VERBOSE_TEXT_MAX_LINES = 16
+# Bumped from 1_000 / 16 to 16_000 / 60 — a real `ls -la` or `git status`
+# already tripped the old ceiling, so most tool outputs were arriving
+# with a "[showing verbose tail; omitted N chars]" banner instead of the
+# actual result. MAX_LINES no longer trims the head to line boundaries
+# (the TUI's boundedRenderText used to do the same and silently dropped
+# the first 20+ rows of an execute_code result).
+_TUI_VERBOSE_TEXT_MAX_CHARS = 16_000
 
 
 def _cap_tui_verbose_text(text: str) -> str:
-    if (
-        len(text) <= _TUI_VERBOSE_TEXT_MAX_CHARS
-        and text.count("\n") < _TUI_VERBOSE_TEXT_MAX_LINES
-    ):
+    if len(text) <= _TUI_VERBOSE_TEXT_MAX_CHARS:
         return text
 
-    idx = len(text)
-    start = 0
-    for _ in range(_TUI_VERBOSE_TEXT_MAX_LINES):
-        idx = text.rfind("\n", 0, idx)
-        if idx < 0:
-            start = 0
-            break
-        start = idx + 1
-
-    line_start = start
-    start = max(line_start, len(text) - _TUI_VERBOSE_TEXT_MAX_CHARS)
-    if start > line_start:
-        next_break = text.find("\n", start)
-        if 0 <= next_break < len(text) - 1:
-            start = next_break + 1
+    start = len(text) - _TUI_VERBOSE_TEXT_MAX_CHARS
+    next_break = text.find("\n", start)
+    if 0 <= next_break < len(text) - 1:
+        start = next_break + 1
 
     tail = text[start:].lstrip()
     omitted_chars = max(0, len(text) - len(tail))
