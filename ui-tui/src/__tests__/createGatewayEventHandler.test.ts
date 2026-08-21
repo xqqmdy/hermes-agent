@@ -362,20 +362,24 @@ describe('createGatewayEventHandler', () => {
     expect(appended[1]).toMatchObject({ role: 'assistant', text: 'final answer' })
   })
 
-  it('streams legacy thinking.delta into visible reasoning state', () => {
+  it('routes thinking.delta to the status line only, never into reasoning', () => {
+    // thinking.delta carries the quiet-mode spinner line ("(◈) tracing light
+    // rays...") — transient status. Model reasoning streams on reasoning.delta;
+    // conflating the two stacked spinner ticks inside the Thinking body.
     vi.useFakeTimers()
     const appended: Msg[] = []
-    const streamed = 'short streamed reasoning'
+    const status = '(◈) tracing light rays...'
     const onEvent = createGatewayEventHandler(buildCtx(appended))
 
     try {
       onEvent({ payload: {}, type: 'message.start' } as any)
-      onEvent({ payload: { text: streamed }, type: 'thinking.delta' } as any)
+      onEvent({ payload: { text: status }, type: 'thinking.delta' } as any)
       vi.runOnlyPendingTimers()
 
-      expect(getTurnState().reasoning).toBe(streamed)
-      expect(getTurnState().reasoningActive).toBe(true)
-      expect(getTurnState().reasoningTokens).toBe(estimateTokensRough(streamed))
+      // Status line updated...
+      expect(getUiState().status).toBe(status)
+      // ...and reasoning body untouched.
+      expect(getTurnState().reasoning).toBe('')
     } finally {
       vi.useRealTimers()
     }

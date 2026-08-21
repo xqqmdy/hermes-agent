@@ -800,6 +800,13 @@ export function createGatewayEventHandler(ctx: GatewayEventHandlerContext): (ev:
       }
 
       case 'thinking.delta': {
+        // Status-only. The gateway's thinking_callback carries the quiet-mode
+        // spinner line ("(◈) tracing light rays...") — a transient status, NOT
+        // model reasoning. Feeding it into recordReasoningDelta appended every
+        // spinner tick into the Thinking body: the kaomoji verbs polluted the
+        // reasoning transcript and each API call stacked another line at the
+        // bottom of the turn. Real model reasoning arrives on
+        // `reasoning.delta`, which owns recordReasoningDelta.
         if (!getUiState().busy) {
           return
         }
@@ -807,12 +814,7 @@ export function createGatewayEventHandler(ctx: GatewayEventHandlerContext): (ev:
         const text = ev.payload?.text
 
         if (text !== undefined) {
-          const value = String(text)
-          scheduleThinkingStatus(value || statusFromBusy())
-
-          if (value) {
-            turnController.recordReasoningDelta(value)
-          }
+          scheduleThinkingStatus(String(text) || statusFromBusy())
         }
 
         return
