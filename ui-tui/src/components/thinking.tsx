@@ -264,28 +264,42 @@ function Detail({
     if (sections.length > 0) {
       return (
         <>
-          {sections.map((section, index) => (
-            <TreeRow branch={index === sections.length - 1 ? branch : 'mid'} key={`${index}-${section.label}`} rails={rails} t={t}>
-              {section.label && (
-                <Text color={t.color.muted} dim>
-                  {section.label}
-                </Text>
-              )}
-              {section.body.trim() ? (
-                hasAnsi(section.body) ? (
-                  // Full brightness: the body IS the deliverable (command
-                  // output, file content). The old path inherited the trail
-                  // row's dim flag, washing the entire output into a grey
-                  // that was hard to read. Labels stay muted; body doesn't.
-                  <Ansi>{sanitizeAnsiForRender(section.body)}</Ansi>
-                ) : (
-                  <Text color={t.color.text} wrap="wrap">
-                    {section.body}
+          {sections.map((section, index) => {
+            // Args = the command/code payload → desktop parity: give it a
+            // subtle surface background (`selectionBg`) so it reads as "the
+            // input that was run", visually distinct from the Result block.
+            const isArgs = section.label === 'Args'
+            const bodyColor = isArgs ? t.color.text : t.color.muted
+            return (
+              <TreeRow branch={index === sections.length - 1 ? branch : 'mid'} key={`${index}-${section.label}`} rails={rails} t={t}>
+                {section.label && (
+                  <Text color={t.color.muted} dim>
+                    {section.label}
                   </Text>
-                )
-              ) : null}
-            </TreeRow>
-          ))}
+                )}
+                {section.body.trim() ? (
+                  isArgs ? (
+                    <Text backgroundColor={t.color.selectionBg} wrap="wrap">
+                      {hasAnsi(section.body) ? (
+                        <Ansi>{sanitizeAnsiForRender(section.body)}</Ansi>
+                      ) : (
+                        section.body
+                      )}
+                    </Text>
+                  ) : hasAnsi(section.body) ? (
+                    // Result body: dimmer than the label's full-brightness
+                    // siblings but NOT `dim` — muted foreground sits between
+                    // the label (muted+dim) and Args (text on selectionBg).
+                    <Ansi>{sanitizeAnsiForRender(section.body)}</Ansi>
+                  ) : (
+                    <Text color={bodyColor} wrap="wrap">
+                      {section.body}
+                    </Text>
+                  )
+                ) : null}
+              </TreeRow>
+            )
+          })}
         </>
       )
     }
