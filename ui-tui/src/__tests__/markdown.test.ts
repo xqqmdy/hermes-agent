@@ -456,3 +456,43 @@ describe('body prose stays in the theme palette', () => {
     }
   })
 })
+
+describe('read_file <digits>| strip in fenced code blocks', () => {
+  it('drops the line-number prefix and `|` so highlightLine does not tokenize the digits', () => {
+    // The backend tags every read_file line as `<digits>|<content>` — TUI
+    // renders read output in product mode (no gutter, no `|`), matching the
+    // desktop default. Without stripping, `12` becomes a number token and
+    // gets tinted, and `|` prints as a literal bitwise-OR mid-line.
+    const md = ['```py',
+      '12|def foo():',
+      '13|    return 1',
+      '14|',
+      '```'].join('\n')
+
+    const out = renderPlain(React.createElement(Md, { text: md, t: DEFAULT_THEME }))
+    const text = out.join('\n')
+
+    expect(text).toContain('def foo():')
+    expect(text).toContain('return 1')
+    expect(text).not.toContain('12|')
+    expect(text).not.toContain('13|')
+    expect(text).not.toContain('14|')
+  })
+
+  it('leaves diff fences alone (their `+`/`-`/`@@` prefixes never match `^\d+\|`)', () => {
+    const md = ['```diff',
+      '@@ -1,3 +1,3 @@',
+      '-old line',
+      '+12|new line',
+      ' context',
+      '```'].join('\n')
+
+    const out = renderPlain(React.createElement(Md, { text: md, t: DEFAULT_THEME }))
+    const text = out.join('\n')
+
+    // The `12|` here is genuine source content, not a read_file protocol
+    // tag — the regex only strips when the line begins with `<digits>|`,
+    // so `+12|new line` survives intact.
+    expect(text).toContain('+12|new line')
+  })
+})

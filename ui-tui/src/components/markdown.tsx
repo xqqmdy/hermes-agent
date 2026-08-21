@@ -789,8 +789,14 @@ function MdImpl({ cols, compact, t, text }: MdProps) {
           if (close && close[0] === char && close.length >= len) {
             break
           }
-
-          block.push(lines[i]!)
+          // TUI renders read_file output in product mode — no per-line
+          // gutter, no `|` separator — matching the desktop default. The
+          // backend tags every read_file line as `<digits>|<content>`;
+          // without stripping it here, `12` gets tokenized as a number
+          // by `highlightLine` and tinted, and `|` prints as a literal
+          // bitwise-OR operator mid-line. Diff blocks (`+` / `-` / `@@`
+          // prefixes) never match `^\d+\|`, so this is a no-op for them.
+          block.push(lines[i]!.replace(/^\d+\|/g, ''))
         }
 
         if (i < lines.length) {
