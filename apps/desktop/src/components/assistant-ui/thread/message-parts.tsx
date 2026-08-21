@@ -4,7 +4,7 @@ import {
   useAuiState,
   useMessagePartReasoning
 } from '@assistant-ui/react'
-import { type ComponentProps, type FC, type ReactNode, useEffect, useRef, useState } from 'react'
+import { type ComponentProps, type FC, type ReactNode, useState } from 'react'
 
 import { ClarifyTool } from '@/components/assistant-ui/clarify-tool'
 import { MarkdownText, MarkdownTextContent } from '@/components/assistant-ui/markdown-text'
@@ -110,8 +110,6 @@ const ThinkingDisclosure: FC<{
   const [userOpen, setUserOpen] = useState<boolean | null>(null)
   const elapsed = useElapsedSeconds(pending, timerKey)
   const thoughtFor = useMeasuredDuration(pending, timerKey)
-  const scrollRef = useRef<HTMLDivElement | null>(null)
-  const contentRef = useRef<HTMLDivElement | null>(null)
   const enterRef = useEnterAnimation(messageRunning, timerKey)
   const open = userOpen ?? true
   const isPreview = pending && userOpen === null
@@ -133,46 +131,6 @@ const ThinkingDisclosure: FC<{
     }
   }
 
-  // While the preview is live, pin the scroll container to the bottom on
-  // every content growth so the latest tokens are always visible.
-  useEffect(() => {
-    if (!isPreview) {
-      return
-    }
-
-    const el = scrollRef.current
-    const content = contentRef.current
-
-    if (!el || !content) {
-      return
-    }
-
-    // Height-gated: the observer also fires when the container's WIDTH changes
-    // (sidebar sash drag resizes every message), and pinning there forces a
-    // scrollHeight read+write per preview per frame. Only actual content
-    // growth needs the pin; the height rides the RO entry, reflow-free.
-    let lastHeight = -1
-
-    const pin = (entries: readonly ResizeObserverEntry[]) => {
-      const height = entries[entries.length - 1]?.borderBoxSize?.[0]?.blockSize ?? -1
-      const grew = height < 0 || height > lastHeight
-      lastHeight = height
-
-      if (grew) {
-        el.scrollTop = el.scrollHeight
-      }
-    }
-
-    // No sync pin(): the observer's guaranteed initial delivery runs it with
-    // layout already clean (still before paint), avoiding a forced reflow.
-    const observer = new ResizeObserver(pin)
-    observer.observe(content)
-
-    return () => observer.disconnect()
-    // Re-run when the disclosure toggles so the observer attaches to the new
-    // DOM after expand/collapse (refs are conditionally rendered on `open`).
-  }, [isPreview, open])
-
   return (
     <div
       className="text-[length:var(--conversation-tool-font-size)] text-(--ui-text-tertiary)"
@@ -189,13 +147,13 @@ const ThinkingDisclosure: FC<{
           className={cn(
             // Body sits flush with the "Thinking" header — no left indent —
             // and inherits the disclosure-level opacity fade defined in
-            // styles.css (~0.67 at rest, 1 on hover/focus).
-            'mt-0.5 w-full min-w-0 max-w-full overflow-hidden wrap-anywhere pb-1',
-            isPreview && 'max-h-40'
+            // styles.css (~0.67 at rest, 1 on hover/focus). No height cap:
+            // the streaming body grows in place like any other transcript
+            // block instead of scrolling inside a fixed window.
+            'mt-0.5 w-full min-w-0 max-w-full wrap-anywhere pb-1'
           )}
-          ref={scrollRef}
         >
-          <div ref={contentRef}>{children}</div>
+          {children}
         </div>
       )}
     </div>
