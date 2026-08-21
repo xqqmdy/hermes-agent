@@ -41,7 +41,7 @@ import { useI18n } from '@/i18n'
 import { PrettyLink, LinkifiedText as SharedLinkifiedText, urlSlugTitleLabel } from '@/lib/external-link'
 import { AlertCircle, CheckCircle2 } from '@/lib/icons'
 import { shikiLanguageForFilename } from '@/lib/markdown-code'
-import { normalize } from '@/lib/text'
+import { firstStringField, normalize } from '@/lib/text'
 import { useEnterAnimation } from '@/lib/use-enter-animation'
 import { cn } from '@/lib/utils'
 import { recordPreviewArtifact } from '@/store/preview-status'
@@ -55,7 +55,6 @@ import {
   clampForDisplay,
   cleanVisibleText,
   countDiffLineStats,
-  firstStringField,
   inlineDiffFromResult,
   isCardTool,
   isFileEditTool,
