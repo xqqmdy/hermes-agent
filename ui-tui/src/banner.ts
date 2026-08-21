@@ -3,20 +3,17 @@ import type { ThemeColors } from './theme.js'
 const RICH_RE = /\[(?:bold\s+)?(?:dim\s+)?(#(?:[0-9a-fA-F]{3,8}))\]([\s\S]*?)(\[\/\])/g
 
 export function parseRichMarkup(markup: string): Line[] {
-  // One output Line per SOURCE line. Skin art (banner_hero) tags every glyph
-  // with its own `[color]span[/]` — emitting each span as its own Line made
-  // ArtLines render the art vertically, one glyph per terminal row (the
-  // "dot matrix collapses into a column" bug). A row keeps its spans'
-  // concatenated text and takes the FIRST span's color as the row ink;
-  // per-glyph gradient nuance is traded for correct geometry, which any
-  // span-density must preserve.
+  // One output row per SOURCE line; each row holds every `[color]span[/]`
+  // segment in order so per-glyph colors survive. Inter-span text (leading
+  // indents, separators) is kept as uncolored ('') segments — skin art
+  // aligns with braille-blank runs outside the color spans.
   const lines: Line[] = []
 
   for (const raw of markup.split('\n')) {
     const trimmed = raw.trimEnd()
 
     if (!trimmed) {
-      lines.push(['', ' '])
+      lines.push([['', ' ']])
 
       continue
     }
@@ -24,35 +21,28 @@ export function parseRichMarkup(markup: string): Line[] {
     const matches = [...trimmed.matchAll(RICH_RE)]
 
     if (!matches.length) {
-      lines.push(['', trimmed])
+      lines.push([['', trimmed]])
 
       continue
     }
 
-    let text = ''
-    let color = ''
+    const segments: [string, string][] = []
     let cursor = 0
 
     for (const m of matches) {
-      // Keep inter-span text (leading indents, separators) — skin art aligns
-      // with braille-blank runs outside the color spans.
       if (m.index! > cursor) {
-        text += trimmed.slice(cursor, m.index)
+        segments.push(['', trimmed.slice(cursor, m.index)])
       }
 
-      if (!color) {
-        color = m[1] ?? ''
-      }
-
-      text += m[2] ?? ''
+      segments.push([m[1] ?? '', m[2] ?? ''])
       cursor = m.index! + m[0].length
     }
 
     if (cursor < trimmed.length) {
-      text += trimmed.slice(cursor)
+      segments.push(['', trimmed.slice(cursor)])
     }
 
-    lines.push([color, text])
+    lines.push(segments)
   }
 
   return lines
@@ -91,7 +81,7 @@ const CADUC_GRADIENT = [2, 2, 1, 1, 0, 0, 1, 1, 2, 2, 3, 3, 3, 3, 3] as const
 const colorize = (art: string[], gradient: readonly number[], c: ThemeColors): Line[] => {
   const p = [c.primary, c.accent, c.border, c.muted]
 
-  return art.map((text, i) => [p[gradient[i]!] ?? c.muted, text])
+  return art.map((text, i) => [[p[gradient[i]!] ?? c.muted, text]])
 }
 
 export const LOGO_WIDTH = Math.max(...LOGO_ART.map(line => line.length))
@@ -103,6 +93,12 @@ export const logo = (c: ThemeColors, customLogo?: string): Line[] =>
 export const caduceus = (c: ThemeColors, customHero?: string): Line[] =>
   customHero ? parseRichMarkup(customHero) : colorize(CADUCEUS_ART, CADUC_GRADIENT, c)
 
-export const artWidth = (lines: Line[]) => lines.reduce((m, [, t]) => Math.max(m, t.length), 0)
+export const artWidth = (lines: Line[]) =>
+  lines.reduce((m, row) => Math.max(m, row.reduce((n, [, t]) => n + t.length, 0)), 0)
 
-type Line = [string, string]
+/**
+ * One rendered art row. A row is an ordered list of `[color, text]` segments —
+ * skin art tags every glyph (or glyph run) with its own color, so a row must
+ * carry N segments to preserve per-glyph gradients.
+ */
+type Line = [string, string][]

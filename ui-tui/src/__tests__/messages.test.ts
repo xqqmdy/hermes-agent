@@ -129,7 +129,11 @@ describe('MessageLine', () => {
     expect(renderedLine).toContain('Ψ > Okay')
   })
 
-  it('keeps historical thinking blocks collapsed by default', () => {
+  it('expands historical thinking blocks by default (matches resolved section default)', () => {
+    // `SECTION_DEFAULTS.thinking` is 'expanded'; the mount default now agrees
+    // with the resolved section mode, so a finished turn's reasoning stays
+    // readable without a click. Live rows always expanded; history matches.
+
     const stdout = new PassThrough()
     const stdin = new PassThrough()
     const stderr = new PassThrough()
@@ -162,8 +166,8 @@ describe('MessageLine', () => {
     const rendered = stripAnsi(output)
 
     expect(rendered).toContain('Thinking')
-    expect(rendered).not.toContain('step one')
-    expect(rendered).not.toContain('step two')
+    expect(rendered).toContain('step one')
+    expect(rendered).toContain('step two')
   })
 
   it('keeps live thinking blocks expanded while streaming', () => {

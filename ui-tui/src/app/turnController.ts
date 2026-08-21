@@ -494,9 +494,9 @@ class TurnController {
     // `stripInlineDiffChrome` (#fallback-model/index.ts); mirror it here
     // so the two renderers agree on what `+`/`-` looks like.
     const stripped = diffText
-      .replace(/^\s*┊[^\n]*\n?/, '')
       .split('\x1b')
       .reduce((acc, chunk, index) => (index === 0 ? chunk : acc + chunk.replace(/^\[[0-9;]*[A-Za-z]/, '')), '')
+      .replace(/^\s*┊[^\n]*\n?/, '')
       .trim()
 
     if (!stripped) {
