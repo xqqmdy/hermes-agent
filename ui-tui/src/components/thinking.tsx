@@ -14,6 +14,7 @@ import {
   treeTotals,
   widthByDepth
 } from '../lib/subagentTree.js'
+import { highlightLine, isHighlightable, langForFilename } from '../lib/syntax.js'
 import {
   boundedLiveRenderText,
   compactPreview,
@@ -200,6 +201,8 @@ interface DetailRow {
   content: ReactNode
   dimColor?: boolean
   key: string
+  /** Highlight language for code-shaped bodies (read_file / patch results). */
+  lang?: string
 }
 
 // A verbose tool-trail detail arrives as one flat string:
@@ -257,6 +260,8 @@ function Detail({
   color,
   content,
   dimColor,
+  key: _key,
+  lang,
   rails = [],
   t
 }: DetailRow & { branch?: TreeBranch; rails?: TreeRails; t: Theme }) {
@@ -319,6 +324,32 @@ function Detail({
                     // that rhythm in the terminal (leading/trailing blanks
                     // trimmed so the block stays tight against its label).
                     <Text wrap="wrap">{spacedLines(sanitizeAnsiForRender(section.body))}</Text>
+                  ) : lang && isHighlightable(lang) ? (
+                    // Code-shaped Result (read_file source, patch text):
+                    // per-line token coloring via the same highlighter the
+                    // fenced-code path uses. `spacedLines` keeps the
+                    // desktop-style row rhythm.
+                    <Text wrap="wrap">
+                      {spacedLines(section.body)
+                        .split('\n')
+                        .map((line, li) =>
+                          line.trim() === '' ? (
+                            <Text key={li}> </Text>
+                          ) : (
+                            <Text key={li}>
+                              {highlightLine(line.replace(/^\d+\|/, ''), lang, t).map(([tokColor, tok], ti) =>
+                                tokColor ? (
+                                  <Text color={tokColor} key={ti}>
+                                    {tok}
+                                  </Text>
+                                ) : (
+                                  tok
+                                )
+                              )}
+                            </Text>
+                          )
+                        )}
+                    </Text>
                   ) : (
                     <Text color={t.color.muted} wrap="wrap">
                       {spacedLines(section.body)}
@@ -869,8 +900,16 @@ export const ToolTrail = memo(function ToolTrail({
     [commandOverride, detailsMode, sections]
   )
 
-  const thinkingDefaultExpanded =
-    visible.thinking === 'expanded' && (preferExpandedThinking || commandOverride || sections?.thinking === 'expanded')
+  // The third clause must accept the SECTION DEFAULT, not just an explicit
+  // `sections.thinking` entry. `sectionMode` already resolves
+  // thinking→'expanded' via SECTION_DEFAULTS when the user hasn't pinned an
+  // override, so `visible.thinking === 'expanded'` is true — but the old
+  // third clause (`sections?.thinking === 'expanded'`) only matched an
+  // explicit config entry, so default-expanded thinking still mounted
+  // collapsed for history/resumed rows (live rows worked because streaming
+  // passes `liveDetails`). Accepting the resolved visibility here makes the
+  // mount default agree with the resolved section mode.
+  const thinkingDefaultExpanded = visible.thinking === 'expanded'
 
   const [now, setNow] = useState(() => Date.now())
   // Local toggles own the open state once mounted.  Init from the resolved
@@ -981,11 +1020,18 @@ export const ToolTrail = memo(function ToolTrail({
       })
 
       if (parsed.detail) {
+        // Sniff a filename out of the call (`Read File("C:\…\x.ts")`) so
+        // code-shaped Result bodies (read_file source, patch text) get the
+        // same token coloring as fenced code blocks.
+        const pathMatch = /\((["'])(.+?)\1\)/.exec(parsed.call)
+        const lang = pathMatch ? langForFilename(pathMatch[2]) : undefined
+
         pushDetail({
           color: parsed.mark === '✗' ? t.color.error : t.color.muted,
           content: parsed.detail,
           dimColor: parsed.mark !== '✗',
-          key: `tr-${i}-d`
+          key: `tr-${i}-d`,
+          lang
         })
       }
 
@@ -1039,7 +1085,8 @@ export const ToolTrail = memo(function ToolTrail({
               color: t.color.muted,
               content: `Args:\n${boundedLiveRenderText(tool.verboseArgs)}`,
               dimColor: true,
-              key: `${tool.id}-args`
+              key: `${tool.id}-args`,
+              lang: langForFilename(tool.context || '')
             }
           ]
         : [],

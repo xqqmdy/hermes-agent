@@ -115,3 +115,18 @@ export function highlightLine(line: string, lang: string, t: Theme): Token[] {
 
   return tokens
 }
+
+// Map a filename to a highlightable language id (undefined when the
+// extension isn't in the palette). Used by tool-trail details so read_file /
+// patch bodies get the same token coloring as fenced code blocks.
+export function langForFilename(filename: string): string | undefined {
+  const ext = (/\.([A-Za-z0-9]+)$/.exec(filename.trim())?.[1] ?? '').toLowerCase()
+
+  if (!ext) {
+    return undefined
+  }
+
+  const lang = ALIAS[ext] ?? ext
+
+  return resolve(lang) ? lang : undefined
+}
