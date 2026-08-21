@@ -6550,34 +6550,55 @@ def _redact_tui_verbose_text(text: str) -> str:
 
 
 def _tool_args_text(args: dict) -> str:
+    # Command-shaped tools carry their payload in a single string field —
+    # `command` (terminal), `code` (execute_code), `script` (cronjob). The
+    # user wants to read the COMMAND, not a JSON envelope escaping every
+    # newline as \\n inside an indented object. Show the raw payload for
+    # those; everything else keeps the pretty-printed JSON dump.
+    data = args or {}
+    for key in ('command', 'code', 'script'):
+        value = data.get(key)
+        if isinstance(value, str) and value.strip():
+            return _redact_tui_verbose_text(value)
+
     try:
-        raw = json.dumps(args or {}, indent=2, ensure_ascii=False, default=str)
+        raw = json.dumps(data, indent=2, ensure_ascii=False, default=str)
     except Exception:
-        raw = str(args or {})
+        raw = str(data)
     return _redact_tui_verbose_text(raw)
 
 
 def _tool_result_text(result: object) -> str:
     # `_multimodal_text_summary` json.dumps()s a dict result — which dumps
     # shell/execute_code's {stdout, stderr, code} envelope to a raw JSON
-    # string the TUI just displays verbatim. Prefer the existing stdout /
-    # stderr fields (matching the desktop's `firstStringField` split in
-    # `buildToolView`) when the result is a dict, so the TUI shows the
+    # string the TUI just displays verbatim. Parse the envelope first (the
+    # caller hands us a JSON *string*, not a dict) and prefer the existing
+    # stdout / stderr / output fields — matching the desktop's
+    # `firstStringField` split in `buildToolView` — so the TUI shows the
     # actual command output instead of `{"stdout": "...", "stderr": "..."}`.
-    if isinstance(result, dict):
-        stdout = result.get('stdout')
-        stderr = result.get('stderr')
-        if isinstance(stdout, str) or isinstance(stderr, str):
-            parts = []
-            if isinstance(stdout, str) and stdout:
-                parts.append(stdout)
-            if isinstance(stderr, str) and stderr:
-                # stderr is intentionally NOT painted destructive — many
-                # CLIs use it for informational messages (npm progress,
-                # git hints). Render it after stdout, plain.
-                parts.append(stderr)
-            if parts:
-                return _redact_tui_verbose_text('\n'.join(parts))
+    data = result
+    if isinstance(result, str):
+        try:
+            data = json.loads(result)
+        except Exception:
+            data = None
+
+    if isinstance(data, dict):
+        stdout = data.get('stdout')
+        stderr = data.get('stderr')
+        parts = []
+        if isinstance(stdout, str) and stdout:
+            parts.append(stdout)
+        if isinstance(stderr, str) and stderr:
+            # stderr is intentionally NOT painted destructive — many CLIs
+            # use it for informational messages (npm progress, git hints).
+            parts.append(stderr)
+        if parts:
+            return _redact_tui_verbose_text('\n'.join(parts))
+        # Terminal-style tools merge both streams into a single `output`.
+        output = data.get('output')
+        if isinstance(output, str) and output.strip():
+            return _redact_tui_verbose_text(output)
 
     try:
         from agent.tool_dispatch_helpers import _multimodal_text_summary
