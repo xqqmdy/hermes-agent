@@ -211,14 +211,12 @@ interface DetailRow {
 // heading above a pre block, stderr in a dimmer tint below. Flat `::`-joined
 // text reads as one undifferentiated wall; splitting on the known section
 // labels restores that product shape in the terminal.
-// Desktop renders tool-output rows with vertical breathing room; the
-// terminal equivalent is a blank line between each source line. Leading and
-// trailing blanks are trimmed so the block stays tight against its label
-// and the next tree row.
+// Trailing blanks are trimmed so the block stays tight against its label
+// and the next tree row. Rows keep their natural single-newline rhythm —
+// a full blank line between every output row doubled the block height and
+// read as sparse.
 function spacedLines(body: string): string {
-  const lines = body.replace(/\n+$/, '').split('\n')
-
-  return lines.join('\n\n')
+  return body.replace(/\n+$/, '')
 }
 
 const DETAIL_SECTION_LABELS = ['Args', 'Result', 'Error'] as const
