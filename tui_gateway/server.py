@@ -4283,6 +4283,9 @@ def resolve_skin() -> dict:
             "light_colors": skin.light_colors,
             "dark_colors": skin.dark_colors,
             "branding": skin.branding,
+            # Spinner block (faces / verbs / wings): the TUI's busy indicator
+            # rotates the skin's own verbs/faces, same as the CLI spinner.
+            "spinner": skin.spinner,
             "banner_logo": skin.banner_logo,
             "banner_hero": skin.banner_hero,
             "tool_prefix": skin.tool_prefix,

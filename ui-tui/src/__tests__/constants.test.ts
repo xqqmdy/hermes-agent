@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest'
 
-import { FACES } from '../content/faces.js'
 import { HOTKEYS } from '../content/hotkeys.js'
 import { PLACEHOLDERS } from '../content/placeholders.js'
 import { TOOL_VERBS, VERBS } from '../content/verbs.js'
@@ -13,7 +12,7 @@ describe('constants', () => {
   it('ZERO', () => expect(ZERO).toEqual({ calls: 0, input: 0, output: 0, total: 0 }))
 
   it('string arrays are populated', () => {
-    for (const arr of [FACES, PLACEHOLDERS, VERBS]) {
+    for (const arr of [PLACEHOLDERS, VERBS]) {
       expect(arr.length).toBeGreaterThan(0)
       arr.forEach(s => expect(typeof s).toBe('string'))
     }

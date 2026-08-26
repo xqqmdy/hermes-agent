@@ -94,7 +94,8 @@ const themeForSkin = (s: GatewaySkin) => {
     s.banner_logo ?? '',
     s.banner_hero ?? '',
     s.tool_prefix ?? '',
-    s.help_header ?? ''
+    s.help_header ?? '',
+    s.spinner
   )
 }
 
@@ -151,9 +152,13 @@ const themesEqual = (a: Theme, b: Theme) => {
     a.brand.name === b.brand.name &&
     a.brand.prompt === b.brand.prompt &&
     a.bannerLogo === b.bannerLogo &&
-    a.bannerHero === b.bannerHero
+    a.bannerHero === b.bannerHero &&
+    spinnerListsEqual(a.spinnerVerbs, b.spinnerVerbs) &&
+    spinnerListsEqual(a.spinnerFaces, b.spinnerFaces)
   )
 }
+
+const spinnerListsEqual = (a: string[], b: string[]) => a.length === b.length && a.every((v, i) => v === b[i])
 
 // A skin that owns the background must own BOTH terminal defaults: OSC-11
 // paints every cell's backdrop, and OSC-10 re-bases every default-fg token —

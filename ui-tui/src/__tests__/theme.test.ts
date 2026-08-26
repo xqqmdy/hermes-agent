@@ -264,6 +264,24 @@ describe('fromSkin', () => {
     expect(brand.prompt).toBe('$')
   })
 
+  it('carries skin spinner faces/verbs through and defaults to empty pools', async () => {
+    const { DEFAULT_THEME, fromSkin } = await importThemeWithCleanEnv()
+
+    // No spinner block → empty pools (the status ticker falls back to built-ins).
+    expect(fromSkin({}, {}).spinnerVerbs).toEqual([])
+    expect(fromSkin({}, {}).spinnerFaces).toEqual([])
+
+    // Authored lists pass through; junk entries (non-string / blank) are dropped.
+    const theme = fromSkin({}, {}, '', '', '', '', {
+      thinking_verbs: ['compiling shaders', '', 42 as unknown as string],
+      thinking_faces: ['(◈)']
+    })
+
+    expect(theme.spinnerVerbs).toEqual(['compiling shaders'])
+    expect(theme.spinnerFaces).toEqual(['(◈)'])
+    expect(DEFAULT_THEME.spinnerVerbs).toEqual([])
+  })
+
   it('normalizes skin prompt symbols to trimmed single-line text', async () => {
     const { DEFAULT_THEME, fromSkin } = await importThemeWithCleanEnv()
 

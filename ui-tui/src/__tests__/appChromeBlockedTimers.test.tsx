@@ -10,6 +10,7 @@ import { patchOverlayState, resetOverlayState } from '../app/overlayStore.js'
 import { patchUiState, resetUiState } from '../app/uiStore.js'
 import { StatusRule } from '../components/appChrome.js'
 import { AppLayout } from '../components/appLayout.js'
+import { VERBS } from '../content/verbs.js'
 import type { GatewayClient } from '../gatewayClient.js'
 import { DEFAULT_VOICE_RECORD_KEY } from '../lib/platform.js'
 import { stripAnsi } from '../lib/text.js'
@@ -21,6 +22,11 @@ type IntervalSpy = ReturnType<typeof vi.spyOn<typeof globalThis, 'setInterval'>>
 // Fixed wall clock so the rendered elapsed read-outs are exact strings rather
 // than whatever the machine's clock happens to produce mid-test.
 const T0 = 1_800_000_000_000
+
+// FaceTicker's glyph/verb rotation cadence (ms) — re-declared here because the
+// constant isn't exported. Keep in sync with FACE_TICK_MS in
+// components/appChrome.tsx.
+const FACE_TICK_MS = 2500
 
 const mounted: Array<() => void> = []
 
@@ -100,6 +106,7 @@ const busyProps: StatusRuleProps = {
   busy: true,
   indicatorStyle: 'kaomoji',
   lastTurnEndedAt: null,
+  t: { ...DEFAULT_THEME, spinnerFaces: [], spinnerVerbs: VERBS },
   turnStartedAt: T0 - 30_000
 }
 
@@ -244,7 +251,7 @@ describe('status-chrome timers under an occluding overlay', () => {
     mount(busyProps)
 
     // kaomoji cadence for the glyph + verb rotation, plus the elapsed clock.
-    expect(armedDelays(intervalSpy)).toContain(2500)
+    expect(armedDelays(intervalSpy)).toContain(FACE_TICK_MS)
     expect(oneSecondTimers(intervalSpy)).toBeGreaterThan(0)
   })
 
@@ -253,7 +260,7 @@ describe('status-chrome timers under an occluding overlay', () => {
 
     mount(busyProps)
 
-    expect(armedDelays(intervalSpy)).not.toContain(2500)
+    expect(armedDelays(intervalSpy)).not.toContain(FACE_TICK_MS)
     expect(oneSecondTimers(intervalSpy)).toBe(0)
   })
 
@@ -264,7 +271,7 @@ describe('status-chrome timers under an occluding overlay', () => {
 
     mount(busyProps)
 
-    expect(armedDelays(intervalSpy)).toContain(2500)
+    expect(armedDelays(intervalSpy)).toContain(FACE_TICK_MS)
     expect(oneSecondTimers(intervalSpy)).toBeGreaterThan(0)
   })
 

@@ -85,6 +85,14 @@ export const SKIN_BRANDING_TOKENS = [
 
 export type SkinBrandingToken = (typeof SKIN_BRANDING_TOKENS)[number]
 
+/** Spinner block (faces / verbs / wings) — drives the CLI + TUI status chrome. */
+export interface SkinSpinner {
+  thinking_faces?: string[]
+  thinking_verbs?: string[]
+  waiting_faces?: string[]
+  [key: string]: unknown
+}
+
 /** Hex color per token. Open-ended so back-compat / niche keys still round-trip. */
 export type SkinColors = Partial<Record<SkinColorToken, string>> & { [key: string]: string | undefined }
 
@@ -103,6 +111,7 @@ export interface HermesSkin {
   /** Hand-tuned palette overlay for light terminals (dark-authored skins). */
   light_colors?: SkinColors
   branding?: SkinBranding
+  spinner?: SkinSpinner
   banner_logo?: string
   banner_hero?: string
   tool_prefix?: string

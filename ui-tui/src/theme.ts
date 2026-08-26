@@ -1,4 +1,4 @@
-import type { SkinBranding, SkinColors } from '@hermes/shared/skin'
+import type { SkinBranding, SkinColors, SkinSpinner } from '@hermes/shared/skin'
 
 import { desaturate, grayOf, liftForContrast, mix, parseColor, relativeLuminance, toHex } from './lib/color.js'
 
@@ -64,6 +64,12 @@ export interface Theme {
   brand: ThemeBrand
   bannerLogo: string
   bannerHero: string
+  // Skin-authored spinner chrome (spinner.thinking_verbs / thinking_faces).
+  // Empty arrays mean "skin authored none" — the status ticker falls back to
+  // its built-in pools. Faces/verbs ride the theme (not a separate store) so a
+  // `skin.changed` broadcast re-seeds the busy indicator with everything else.
+  spinnerFaces: string[]
+  spinnerVerbs: string[]
 }
 
 // ── Color math ───────────────────────────────────────────────────────
@@ -419,14 +425,18 @@ export const DARK_THEME: Theme = {
   color: buildPalette(DARK_SEEDS, false),
   brand: BRAND,
   bannerLogo: '',
-  bannerHero: ''
+  bannerHero: '',
+  spinnerFaces: [],
+  spinnerVerbs: []
 }
 
 export const LIGHT_THEME: Theme = {
   color: buildPalette(LIGHT_SEEDS, true),
   brand: BRAND,
   bannerLogo: '',
-  bannerHero: ''
+  bannerHero: '',
+  spinnerFaces: [],
+  spinnerVerbs: []
 }
 
 // ── Background-aware readability adaptation ─────────────────────────
@@ -841,7 +851,8 @@ export function fromSkin(
   bannerLogo = '',
   bannerHero = '',
   toolPrefix = '',
-  helpHeader = ''
+  helpHeader = '',
+  spinner?: SkinSpinner
 ): Theme {
   // Polarity: the skin's own canvas when it authors one (see skinIsLight);
   // otherwise live host detection (not the module-load snapshot — by the time
@@ -961,9 +972,19 @@ export function fromSkin(
       },
 
       bannerLogo,
-      bannerHero
+      bannerHero,
+
+      // Spinner chrome passes through verbatim (string lists); the status
+      // ticker validates/falls back per item so a junk skin entry can't
+      // poison the rotation.
+      spinnerFaces: asStringList(spinner?.thinking_faces),
+      spinnerVerbs: asStringList(spinner?.thinking_verbs)
     },
     process.env,
     isLight
   )
 }
+
+/** Coerce a raw YAML list into clean strings (drops non-strings / blanks). */
+const asStringList = (raw: unknown): string[] =>
+  Array.isArray(raw) ? raw.filter((v): v is string => typeof v === 'string' && v.trim() !== '') : []

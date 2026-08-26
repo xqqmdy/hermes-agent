@@ -66,7 +66,8 @@ export {
   type SkinBranding,
   type SkinBrandingToken,
   type SkinColors,
-  type SkinColorToken
+  type SkinColorToken,
+  type SkinSpinner
 } from './skin'
 export {
   backgroundMaterialFor,
